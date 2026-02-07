@@ -6,7 +6,7 @@ const PORT = 8080
 
 const app = new Elysia()
     .use(cors({
-        origin: 'http://localhost:3000',
+        origin: process.env.NEXT_PUBLIC_URL,
         credentials: true
     }))
     .ws('/ws', {
@@ -54,6 +54,9 @@ const app = new Elysia()
             ws.unsubscribe(roomId)
         }
     })
-    .listen(PORT)
+    .listen({
+        port: PORT,
+        hostname: '0.0.0.0'
+    })
 
 console.log(`WebSocket Server running at ${app.server?.hostname}:${app.server?.port}`)

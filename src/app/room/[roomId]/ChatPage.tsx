@@ -41,15 +41,20 @@ const ChatPage = ({
   useEffect(() => {
     if (!roomId) return;
 
-    const ws = new WebSocket(`ws://localhost:8080/ws?roomId=${roomId}`);
+    const ws = new WebSocket(
+      `${process.env.NEXT_PUBLIC_WS_URL}?roomId=${roomId}`,
+    );
     wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log("Connected to Chat Room");
-    };
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
+      console.log(data.type);
+
+      if (data.type === "ROOM_DESTROYED") {
+        router.push("/");
+        return;
+      }
+
       if (data.error) {
         console.error("WS Error:", data.error);
         return;
@@ -58,14 +63,29 @@ const ChatPage = ({
       setMessages((prev) => [...prev, data]);
     };
 
-    ws.onclose = () => {
-      console.log("Disconnected from Chat Room");
-    };
-
     return () => {
       ws.close();
     };
-  }, [roomId]);
+  }, [roomId, router]);
+
+  const handleDestroy = async () => {
+    if (wsRef.current) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: "ROOM_DESTROYED",
+          text: "Room is destroyed",
+        }),
+      );
+    }
+
+    router.push("/");
+
+    await fetch("/api/room/destroy", {
+      method: "post",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roomId }),
+    });
+  };
 
   const sendMessage = () => {
     if (!input.trim() || !wsRef.current) return;
@@ -134,8 +154,10 @@ const ChatPage = ({
             </span>
           </div>
         </div>
-        <button onClick={() => {}}
-         className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2 px-3 py-2 text-xs font-bold tracking-wider rounded shadow-lg shadow-red-900/20 transition-all hover:scale-105 active:scale-95">
+        <button
+          onClick={handleDestroy}
+          className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2 px-3 py-2 text-xs font-bold tracking-wider rounded shadow-lg shadow-red-900/20 transition-all hover:scale-105 active:scale-95"
+        >
           DESTROY NOW
         </button>
       </header>

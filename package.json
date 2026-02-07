@@ -7,7 +7,7 @@
     "ws": "tsx watch src/ws-server.ts",
     "dev:all": "npm run dev & npm run ws",
     "build": "next build",
-    "start": "next start",
+    "start": "bun run src/ws-server.ts",
     "lint": "eslint"
   },
   "type": "module",
