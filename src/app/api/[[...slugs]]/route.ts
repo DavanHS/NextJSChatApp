@@ -1,8 +1,6 @@
 import { redis } from '@/lib/redis';
 import { Elysia } from 'elysia'
 import { nanoid } from 'nanoid'
-import { authMiddleware } from './auth';
-import z, { success } from 'zod';
 
 export const ROOM_TTL_MILISECONDS = 60 * 10 * 1000
 
