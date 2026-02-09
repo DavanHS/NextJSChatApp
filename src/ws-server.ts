@@ -2,8 +2,6 @@ import { Elysia, t } from 'elysia'
 import { cors } from '@elysiajs/cors'
 import { redis } from './lib/redis'
 
-const PORT = 8080
-
 const app = new Elysia()
     .use(cors({
         origin: process.env.NEXT_PUBLIC_URL,
