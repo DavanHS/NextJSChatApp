@@ -55,7 +55,7 @@ const app = new Elysia()
         }
     })
     .listen({
-        port: PORT,
+        port: process.env.PORT || 8080,
         hostname: '0.0.0.0'
     })
 
