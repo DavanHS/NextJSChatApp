@@ -105,7 +105,7 @@ const ChatPage = ({
 
   const copyLink = () => {
     const url = window.location.href;
-    navigator.clipboard.writeText(url);
+    navigator.clipboard.writeText(url.split("?token")[0]);
     setCopyStatus("Copied!");
     setTimeout(() => setCopyStatus("Copy"), 2000);
   };
