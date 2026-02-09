@@ -20,9 +20,11 @@ type Message = {
 
 const ChatPage = ({
   roomId,
+  token,
   expireAt,
 }: {
   roomId: string;
+  token: string;
   expireAt: number;
 }) => {
   const router = useRouter();
@@ -40,15 +42,13 @@ const ChatPage = ({
 
   useEffect(() => {
     if (!roomId) return;
-
     const ws = new WebSocket(
-      `${process.env.NEXT_PUBLIC_WS_URL}?roomId=${roomId}`,
+      `${process.env.NEXT_PUBLIC_WS_URL}?roomId=${roomId}&token=${token}`,
     );
     wsRef.current = ws;
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      console.log(data.type);
 
       if (data.type === "ROOM_DESTROYED") {
         router.push("/");
@@ -66,7 +66,7 @@ const ChatPage = ({
     return () => {
       ws.close();
     };
-  }, [roomId, router]);
+  }, [roomId, router, token]);
 
   const handleDestroy = async () => {
     if (wsRef.current) {

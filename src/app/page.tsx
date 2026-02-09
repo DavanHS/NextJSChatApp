@@ -36,10 +36,9 @@ export default function Home() {
 
   const { mutate: createRoom } = useMutation({
     mutationFn: async () => {
-      const res = await client.room.create.post();
-      console.log(res);
+      const res = await client.room.create.post();  
       if (res.status === 200) {
-        router.push(`/room/${res.data?.roomId}`);
+        router.push(`/room/${res.data?.roomId}?token=${res.data?.token}`);
       }
     },
   });

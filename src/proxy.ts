@@ -35,9 +35,9 @@ export const proxy = async (req: NextRequest) => {
 
     response.cookies.set("x-auth-token", token, {
         path: "/",
-        httpOnly: true,
+        httpOnly: false,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "lax" 
+        // sameSite: "lax" 
     })
 
     await redis.hset(`meta:${roomId}`, {

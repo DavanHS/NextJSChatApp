@@ -1,13 +1,15 @@
 import { redis } from '@/lib/redis';
+import { cors } from '@elysiajs/cors';
 import { Elysia } from 'elysia'
 import { nanoid } from 'nanoid'
 
 export const ROOM_TTL_MILISECONDS = 60 * 10 * 1000
 
 const rooms = new Elysia({ prefix: "/room" })
+    .use(cors())
     .post("/create", async () => {
         const roomId = nanoid();
-
+        const token = nanoid();
         await redis.hset(`meta:${roomId}`, {
             connected: [],
             expireAt: Date.now() + ROOM_TTL_MILISECONDS,
@@ -15,7 +17,7 @@ const rooms = new Elysia({ prefix: "/room" })
 
         await redis.expire(`meta:${roomId}`, ROOM_TTL_MILISECONDS/1000)
 
-        return { roomId }
+        return { roomId, token }
     })
     .post("/destroy", async ({body}) => {
         const {roomId} = body as {roomId: string};

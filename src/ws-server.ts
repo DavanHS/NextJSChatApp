@@ -4,22 +4,17 @@ import { redis } from './lib/redis'
 
 const app = new Elysia()
     .use(cors({
-        origin: process.env.NEXT_PUBLIC_URL,
+        origin:`${process.env.NEXT_PUBLIC_URL}`,
         credentials: true
     }))
     .ws('/ws', {
         query: t.Object({
-            roomId: t.String()
+            roomId: t.String(),
+            token: t.String()
         }),
 
         async open(ws) {
-            const { roomId } = ws.data.query
-
-            const cookieHeader = ws.data.request.headers.get('cookie') || ''
-            const token = cookieHeader
-                .split(';')
-                .find(c => c.trim().startsWith('x-auth-token='))
-                ?.split('=')[1]
+            const { roomId, token } = ws.data.query
 
             if (!token) {
                 ws.send({ error: 'Unauthorized: No token found' })
