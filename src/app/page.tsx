@@ -3,7 +3,7 @@ import { client } from "@/lib/client";
 import { useMutation } from "@tanstack/react-query";
 import { nanoid } from "nanoid";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const ANIMALS = ["lion", "tiger", "wolf", "leopard", "cheetah"];
 const STORAGE_KEY = "chat_username";
@@ -15,30 +15,35 @@ const generateUsername = () => {
 
 export default function Home() {
   const [username, setUsername] = useState("Your Username");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const router = useRouter();
 
   useEffect(() => {
     const main = () => {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setUsername(stored);
+      const storedUsername = localStorage.getItem(STORAGE_KEY);
+      if (storedUsername) {
+        setUsername(storedUsername);
         return;
       }
 
-      const generated = generateUsername();
-      localStorage.setItem(STORAGE_KEY, generated);
-      setUsername(generated);
+      const generatedUsername = generateUsername();
+      localStorage.setItem(STORAGE_KEY, generatedUsername);
+      setUsername(generatedUsername);
     };
 
     main();
   }, []);
 
+  const joinRoom = () => {
+    router.push(`/room/${inputRef.current?.value}`);
+  };
+
   const { mutate: createRoom } = useMutation({
     mutationFn: async () => {
-      const res = await client.room.create.post();  
+      const res = await client.room.create.post();
       if (res.status === 200) {
-        router.push(`/room/${res.data?.roomId}?token=${res.data?.token}`);
+        router.push(`/room/${res.data?.roomId}`);
       }
     },
   });
@@ -66,10 +71,29 @@ export default function Home() {
             </div>
             <button
               onClick={() => createRoom()}
-              className="w-full bg-zinc-100 text-black p-3 text-sm font-bold hover:bg-zinc-50 hover:text-black transition-colors mt-2 cursor-pointer disabled:opacity-50"
+              className="w-full bg-zinc-100 text-black p-3 text-sm font-bold hover:bg-zinc-50 hover:text-black transition-colors cursor-pointer disabled:opacity-50"
             >
               CREATE SECURE ROOM
             </button>
+            <div className="flex justify-between">
+              <input
+                placeholder="Enter Room ID"
+                ref={inputRef}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && inputRef.current?.value.trim()) {
+                    joinRoom;
+                  }
+                }}
+                className="border w-full border-zinc-800 p-3 mr-4 outline-none"
+                type="text"
+              />
+              <button
+                onClick={joinRoom}
+                className=" bg-zinc-100 w-full text-black px-6 text-sm  font-bold hover:bg-zinc-50 hover:text-black transition-colors cursor-pointer disabled:opacity-50"
+              >
+                JOIN
+              </button>
+            </div>
           </div>
         </div>
       </div>

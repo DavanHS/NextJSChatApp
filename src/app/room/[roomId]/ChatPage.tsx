@@ -27,6 +27,9 @@ const ChatPage = ({
   token: string;
   expireAt: number;
 }) => {
+  /*
+    TODO: fire a ping every 30secs to keep the server running, so that it doesn't sleep
+   */
   const router = useRouter();
   const { timeLeft } = useCountdown(expireAt);
   const [copyStatus, setCopyStatus] = useState("Copy");
@@ -47,11 +50,20 @@ const ChatPage = ({
     );
     wsRef.current = ws;
 
+    const heartBeatInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "PING" }));
+      }
+    }, 30000);
+
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
       if (data.type === "ROOM_DESTROYED") {
         router.push("/");
+        return;
+      }
+      if(data.type === "PONG" || data.type === "PING"){
         return;
       }
 
@@ -64,6 +76,7 @@ const ChatPage = ({
     };
 
     return () => {
+      clearInterval(heartBeatInterval);
       ws.close();
     };
   }, [roomId, router, token]);
@@ -83,7 +96,7 @@ const ChatPage = ({
     await fetch("/api/room/destroy", {
       method: "post",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ roomId }),
+      body: JSON.stringify({ roomId, token }),
     });
   };
 
@@ -105,7 +118,7 @@ const ChatPage = ({
 
   const copyLink = () => {
     const url = window.location.href;
-    navigator.clipboard.writeText(url.split("?token")[0]);
+    navigator.clipboard.writeText(url.split("room/")[1]);
     setCopyStatus("Copied!");
     setTimeout(() => setCopyStatus("Copy"), 2000);
   };

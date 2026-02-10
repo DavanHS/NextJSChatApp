@@ -7,26 +7,30 @@ export const ROOM_TTL_MILISECONDS = 60 * 10 * 1000
 
 const rooms = new Elysia({ prefix: "/room" })
     .use(cors())
-    .post("/create", async () => {
-        const roomId = nanoid();
-        const token = nanoid();
+    .post("/join", () => { })
+    .post("/create", async ({ }) => {
+        const roomId = nanoid(5);
         await redis.hset(`meta:${roomId}`, {
-            connected: [],
+            createdAt: Date.now(),
             expireAt: Date.now() + ROOM_TTL_MILISECONDS,
         })
 
-        await redis.expire(`meta:${roomId}`, ROOM_TTL_MILISECONDS/1000)
+        await redis.expire(`meta:${roomId}`, ROOM_TTL_MILISECONDS / 1000)
 
-        return { roomId, token }
+        return { roomId }
     })
-    .post("/destroy", async ({body}) => {
-        const {roomId} = body as {roomId: string};
+    .post("/destroy", async ({ body }) => {
+        /*
+        TODO:
+        1. Handling the request with authorization access. 
+        */
+        const { roomId } = body as { roomId: string };
         await redis.publish(roomId, JSON.stringify({
             type: "ROOM_DESTROYED",
             text: "Room was destroyed by host."
         }))
         await redis.del(`meta:${roomId}`)
-        return {success: true}
+        return { success: true }
     })
 
 export const app = new Elysia({ prefix: '/api' })

@@ -15,17 +15,10 @@ const app = new Elysia()
 
         async open(ws) {
             const { roomId, token } = ws.data.query
+            const isAllowed = await redis.sismember(`room:${roomId}:users:`, token)
 
-            if (!token) {
-                ws.send({ error: 'Unauthorized: No token found' })
-                ws.close()
-                return
-            }
-
-            const meta = await redis.hgetall<{ connected: string[] }>(`meta:${roomId}`)
-
-            if (!meta || !meta.connected.includes(token)) {
-                ws.send({ error: 'Unauthorized: Not joined to room' })
+            if (isAllowed) {
+                ws.send({ type: "ERROR", message: "Not authorized" })
                 ws.close()
                 return
             }
@@ -36,6 +29,12 @@ const app = new Elysia()
 
         message(ws, message: any) {
             const { roomId } = ws.data.query
+
+            if (message.type === "PING") {
+                ws.send(JSON.stringify({ type: "PONG" }))
+                return;
+            }
+
             ws.publish(roomId, {
                 ...message,
                 time: Date.now()
