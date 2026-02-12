@@ -25,9 +25,6 @@ const ChatPage = ({
   token: string;
   expireAt: number;
 }) => {
-  /*
-    TODO: fire a ping every 30secs to keep the server running, so that it doesn't sleep
-   */
   const router = useRouter();
   const { timeLeft } = useCountdown(expireAt);
   const [copyStatus, setCopyStatus] = useState("Copy");
@@ -97,6 +94,11 @@ const ChatPage = ({
       }
       if (data.type === "PONG" || data.type === "PING") {
         return;
+      }
+
+      if(data.type === "ERROR"){
+        router.push("/");
+        console.log(data.message);
       }
 
       if (data.error) {

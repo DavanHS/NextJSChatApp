@@ -28,6 +28,7 @@ export const proxy = async (req: NextRequest) => {
 
     const exists = await redis.exists(`meta:${roomId}`)
 
+
     if (!exists)
         return NextResponse.redirect(new URL("/?error=room-not-found", req.url))
 
@@ -56,6 +57,7 @@ export const proxy = async (req: NextRequest) => {
 
     if (isMember === 0) {
         await redis.sadd(`room:${roomId}:users`, token)
+        
         await redis.expire(`room:${roomId}:users`, 60 * 10)
     }
 

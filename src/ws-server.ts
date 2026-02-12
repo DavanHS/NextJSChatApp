@@ -4,7 +4,7 @@ import { redis } from './lib/redis'
 
 const app = new Elysia()
     .use(cors({
-        origin:`${process.env.NEXT_PUBLIC_URL}`,
+        origin: `${process.env.NEXT_PUBLIC_URL}`,
         credentials: true
     }))
     .ws('/ws', {
@@ -15,9 +15,9 @@ const app = new Elysia()
 
         async open(ws) {
             const { roomId, token } = ws.data.query
-            const isAllowed = await redis.sismember(`room:${roomId}:users:`, token)
+            const isAllowed = await redis.sismember(`room:${roomId}:users`, token)
 
-            if (isAllowed) {
+            if (!isAllowed) {
                 ws.send({ type: "ERROR", message: "Not authorized" })
                 ws.close()
                 return
@@ -25,6 +25,11 @@ const app = new Elysia()
 
             ws.subscribe(roomId)
             console.log(`User ${token} connected to room ${roomId}`)
+
+            // const joinedRoom = JSON.stringify({
+            //     type: "JOINED", 
+            //     message: 
+            // })
         },
 
         message(ws, message: any) {
