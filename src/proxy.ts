@@ -4,15 +4,15 @@ import { nanoid } from "nanoid"
 
 export const proxy = async (req: NextRequest) => {
     const pathname = req.nextUrl.pathname
-if (pathname === "/") {
+    if (pathname === "/") {
         const token = req.cookies.get("x-auth-token")?.value
         if (token) return NextResponse.next();
         const newToken = nanoid();
         const response = NextResponse.next();
-        
+
         response.cookies.set("x-auth-token", newToken, {
             path: "/",
-            httpOnly: false, 
+            httpOnly: false,
             secure: process.env.NODE_ENV === "production",
             maxAge: 60 * 60 * 24 * 30
         })
@@ -38,6 +38,11 @@ if (pathname === "/") {
     }
 
     const response = NextResponse.next();
+
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    response.headers.set('Surrogate-Control', 'no-store')
 
     const pipeline = redis.pipeline();
     pipeline.scard(`room:${roomId}:users`);

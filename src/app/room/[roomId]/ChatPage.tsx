@@ -10,8 +10,6 @@ function formatTimeRemaining(seconds: number) {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-const senderId = nanoid();
-
 type Message = {
   text: string;
   sender: string;
@@ -40,6 +38,39 @@ const ChatPage = ({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (messages.length > 0) {
+        sessionStorage.setItem(
+          `chat_history_${roomId}`,
+          JSON.stringify({
+            messages: messages,
+            timestamp: Date.now(),
+          }),
+        );
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [messages, roomId]);
+
+  useEffect(() => {
+    const savedMsg = sessionStorage.getItem(`chat_history_${roomId}`);
+    if (savedMsg) {
+      const parsed = JSON.parse(savedMsg);
+      if (Date.now() > expireAt) {
+        sessionStorage.removeItem(`chat_history_${roomId}`);
+        setMessages([]);
+      } else {
+        setMessages(parsed.messages);
+      }
+    }
+    setMessages([]);
+  }, [roomId]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
@@ -63,7 +94,7 @@ const ChatPage = ({
         router.push("/");
         return;
       }
-      if(data.type === "PONG" || data.type === "PING"){
+      if (data.type === "PONG" || data.type === "PING") {
         return;
       }
 
@@ -82,6 +113,8 @@ const ChatPage = ({
   }, [roomId, router, token]);
 
   const handleDestroy = async () => {
+    setMessages([]);
+    console.log(messages);
     if (wsRef.current) {
       wsRef.current.send(
         JSON.stringify({
@@ -105,7 +138,7 @@ const ChatPage = ({
 
     const messagePayload = {
       text: input,
-      sender: senderId,
+      sender: token,
       time: Date.now(),
     };
 
@@ -126,7 +159,7 @@ const ChatPage = ({
     if (timeLeft <= 0) {
       router.push("/");
     }
-  });
+  },[timeLeft, router]);
 
   return (
     <main className="flex flex-col h-screen max-h-screen overflow-hidden bg-black text-zinc-100 font-sans">
@@ -177,7 +210,7 @@ const ChatPage = ({
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
         {messages.map((msg, i) => {
-          const isMe = msg.sender === senderId.toString();
+          const isMe = msg.sender === token;
           return (
             <div
               key={i}
