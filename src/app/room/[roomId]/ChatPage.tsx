@@ -66,8 +66,9 @@ const ChatPage = ({
       } else {
         setMessages(parsed.messages);
       }
+    } else {
+      setMessages([]);
     }
-    setMessages([]);
   }, [roomId]);
 
   useEffect(() => {
@@ -159,7 +160,7 @@ const ChatPage = ({
     if (timeLeft <= 0) {
       router.push("/");
     }
-  },[timeLeft, router]);
+  }, [timeLeft, router]);
 
   return (
     <main className="flex flex-col h-screen max-h-screen overflow-hidden bg-black text-zinc-100 font-sans">

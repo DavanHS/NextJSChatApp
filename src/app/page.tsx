@@ -48,7 +48,7 @@ export default function Home() {
     },
   });
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4">
+    <main className="flex min-h-screen flex-col bg-black items-center justify-center p-4">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold tracking-tight text-green-500">
@@ -84,7 +84,7 @@ export default function Home() {
                     joinRoom;
                   }
                 }}
-                className="border w-full border-zinc-800 p-3 mr-4 outline-none"
+                className="border w-full border-zinc-800 bg-zinc-950 p-3 mr-4 outline-none text-sm text-zinc-400 font-mono"
                 type="text"
               />
               <button
