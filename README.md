@@ -30,7 +30,7 @@ A high-performance, real-time chat application featuring secure, self-destructin
 1.  **Clone the repository**:
     ```bash
     git clone <repository-url>
-    cd NextJSChatApp
+    cd TermiChatApp
     ```
 
 2.  **Install dependencies**:
