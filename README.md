@@ -1,28 +1,28 @@
 # TermiChatApp
 
-A high-performance, real-time chat application featuring secure, self-destructing rooms and a terminal-inspired aesthetic. [cite_start]Built with a modern decoupled architecture using Next.js and a dedicated ElysiaJS WebSocket server[cite: 1, 3, 5].
+A high-performance, real-time chat application featuring secure, self-destructing rooms and a terminal-inspired aesthetic. Built with a modern decoupled architecture using Next.js and a dedicated ElysiaJS WebSocket server.
 
-## 🚀 Features
+## Features
 
-* [cite_start]**Real-time Messaging**: Instant communication powered by WebSockets via ElysiaJS for low-latency delivery[cite: 3, 4].
-* [cite_start]**Self-Destructing Rooms**: Chat rooms are temporary by design, automatically expiring after a set duration (default: 10 minutes) to ensure privacy[cite: 4, 5].
-* [cite_start]**Host Control**: Room creators can manually destroy the room at any time, instantly disconnecting all participants and purging room data[cite: 4, 5].
-* [cite_start]**Live Countdown**: A synchronized visual timer notifies users exactly how much time remains before the room and its history are destroyed[cite: 4].
-* [cite_start]**Redis Integration**: Utilizes Redis for room metadata management, TTL (Time-To-Live) enforcement, and Pub/Sub for cross-server message broadcasting[cite: 3, 5].
-* [cite_start]**Terminal-Inspired UI**: A sleek, high-contrast dark interface built with Tailwind CSS, designed for a focused developer-centric experience[cite: 4].
+* **Real-time Messaging**: Instant communication powered by WebSockets via ElysiaJS for low-latency delivery.
+* **Self-Destructing Rooms**: Chat rooms are temporary by design, automatically expiring after a set duration (default: 10 minutes) to ensure privacy.
+* **Host Control**: Room creators can manually destroy the room at any time, instantly disconnecting all participants and purging room data.
+* **Live Countdown**: A synchronized visual timer notifies users exactly how much time remains before the room and its history are destroyed.
+* **Redis Integration**: Utilizes Redis for room metadata management, TTL (Time-To-Live) enforcement, and Pub/Sub for cross-server message broadcasting.
+* **Terminal-Inspired UI**: A sleek, high-contrast dark interface built with Tailwind CSS, designed for a focused developer-centric experience.
 
 ## 🛠️ Tech Stack
 
-* [cite_start]**Frontend**: Next.js 15 (App Router), React 19, Tailwind CSS.
-* [cite_start]**Backend/WS**: ElysiaJS (running on Bun/Node), WebSockets[cite: 1, 3].
-* [cite_start]**Database**: Redis (Upstash) for ephemeral state and Pub/Sub[cite: 1, 5].
-* [cite_start]**Utilities**: Zod (validation), Nanoid (unique ID generation), TypeScript.
+* **Frontend**: Next.js 15 (App Router), React 19, Tailwind CSS.
+* **Backend/WS**: ElysiaJS (running on Bun/Node), WebSockets.
+* **Database**: Redis (Upstash) for ephemeral state and Pub/Sub.
+* **Utilities**: Zod (validation), Nanoid (unique ID generation), TypeScript.
 
-## 📦 Getting Started
+## Getting Started
 
 ### Prerequisites
 
-* [cite_start]Node.js (v20+) or Bun.
+* Node.js (v20+) or Bun.
 * A Redis instance (e.g., Upstash).
 
 ### Installation
@@ -50,7 +50,7 @@ A high-performance, real-time chat application featuring secure, self-destructin
 
 ### Running the App
 
-[cite_start]Start both the Next.js development server and the WebSocket server simultaneously using the pre-configured script:
+Start both the Next.js development server and the WebSocket server simultaneously using the pre-configured script:
 
 ```bash
 npm run dev:all
