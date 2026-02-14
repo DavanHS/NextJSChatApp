@@ -1,6 +1,5 @@
 "use client";
 import { useCountdown } from "@/hooks/useCountdown";
-import { nanoid } from "nanoid";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 

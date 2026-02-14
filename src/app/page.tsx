@@ -52,7 +52,7 @@ export default function Home() {
       <div className="w-full max-w-md space-y-8">
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold tracking-tight text-green-500">
-            private_chat
+            termi_chat
           </h1>
           <p className="text-zinc-500 text-sm">self destructing chat room</p>
         </div>
