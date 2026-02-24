@@ -11,6 +11,9 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "TermiChat - Chat privately!",
   description: "Self destructing chat place with full privacy",
+  icons: {
+    icon: "/icon.ico"
+  }
 };
 
 export default function RootLayout({

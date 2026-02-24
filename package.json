@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "ws": "tsx watch src/ws-server.ts",
+    "ws": "bun src/ws-server.ts",
     "dev:all": "npm run dev & npm run ws",
     "build": "next build",
     "start": "bun run src/ws-server.ts",
