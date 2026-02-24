@@ -10,11 +10,12 @@ const app = new Elysia()
     .ws('/ws', {
         query: t.Object({
             roomId: t.String(),
-            token: t.String()
+            token: t.String(),
+            username: t.Optional(t.String())
         }),
 
         async open(ws) {
-            const { roomId, token } = ws.data.query
+            const { roomId, token, username } = ws.data.query
             const isAllowed = await redis.sismember(`room:${roomId}:users`, token)
 
             if (!isAllowed) {
@@ -26,10 +27,12 @@ const app = new Elysia()
             ws.subscribe(roomId)
             console.log(`User ${token} connected to room ${roomId}`)
 
-            // const joinedRoom = JSON.stringify({
-            //     type: "JOINED", 
-            //     message: 
-            // })
+            ws.publish(roomId, {
+                type: "USER_JOINED",
+                token: token,
+                username: username,
+                time: Date.now()
+            })
         },
 
         message(ws, message: any) {

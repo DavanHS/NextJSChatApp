@@ -5,19 +5,7 @@ import { nanoid } from "nanoid"
 export const proxy = async (req: NextRequest) => {
     const pathname = req.nextUrl.pathname
     if (pathname === "/") {
-        const token = req.cookies.get("x-auth-token")?.value
-        if (token) return NextResponse.next();
-        const newToken = nanoid();
-        const response = NextResponse.next();
-
-        response.cookies.set("x-auth-token", newToken, {
-            path: "/",
-            httpOnly: false,
-            secure: process.env.NODE_ENV === "production",
-            maxAge: 60 * 60 * 24 * 30
-        })
-
-        return response;
+        return NextResponse.next();
     }
     const roomMatch = pathname.match(/^\/room\/([^/]+)$/)
 
@@ -26,19 +14,25 @@ export const proxy = async (req: NextRequest) => {
 
     const roomId = roomMatch[1];
 
-    const exists = await redis.exists(`meta:${roomId}`)
+    const meta = await redis.hgetall<{ expireAt: string }>(`meta:${roomId}`)
 
-
-    if (!exists)
+    if (!meta || !meta.expireAt) {
         return NextResponse.redirect(new URL("/?error=room-not-found", req.url))
-
-
-    const token = req.cookies.get("x-auth-token")?.value
-    if (!token) {
-        return NextResponse.redirect(new URL("/", req.url))
     }
 
+    let token = req.cookies.get(`x-auth-token-${roomId}`)?.value
     const response = NextResponse.next();
+
+    if (!token) {
+        token = nanoid();
+        const expireAtNumber = Number(meta.expireAt)
+        response.cookies.set(`x-auth-token-${roomId}`, token, {
+            path: "/",
+            httpOnly: false,
+            secure: process.env.NODE_ENV === "production",
+            expires: new Date(expireAtNumber)
+        })
+    }
 
     response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     response.headers.set('Pragma', 'no-cache');
@@ -51,13 +45,13 @@ export const proxy = async (req: NextRequest) => {
 
     const [count, isMember] = await pipeline.exec() as [number, number];
 
-    if (isMember === 0 && count >= 2) {
+    if (isMember === 0 && count >= 3) {
         return NextResponse.redirect(new URL("/?error=room-is-full", req.url))
     }
 
     if (isMember === 0) {
         await redis.sadd(`room:${roomId}:users`, token)
-        
+
         await redis.expire(`room:${roomId}:users`, 60 * 10)
     }
 

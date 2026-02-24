@@ -2,6 +2,7 @@
 import { useCountdown } from "@/hooks/useCountdown";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { nanoid } from "nanoid";
 
 function formatTimeRemaining(seconds: number) {
   let mins = Math.floor(seconds / 60);
@@ -12,6 +13,7 @@ function formatTimeRemaining(seconds: number) {
 type Message = {
   text: string;
   sender: string;
+  username: string; // The UI-friendly name
   time: number;
 };
 
@@ -29,9 +31,17 @@ const ChatPage = ({
   const [copyStatus, setCopyStatus] = useState("Copy");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [username, setUsername] = useState("anonymous");
+  const [isWsOpen, setIsWsOpen] = useState(false);
+  const [toasts, setToasts] = useState<{ id: string; text: string }[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("chat_username");
+    if (stored) setUsername(stored);
+  }, []);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -72,11 +82,15 @@ const ChatPage = ({
   }, [messages]);
 
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId || !username || username === "anonymous") return;
     const ws = new WebSocket(
-      `${process.env.NEXT_PUBLIC_WS_URL}?roomId=${roomId}&token=${token}`,
+      `${process.env.NEXT_PUBLIC_WS_URL}?roomId=${roomId}&token=${token}&username=${encodeURIComponent(username)}`,
     );
     wsRef.current = ws;
+
+    ws.onopen = () => {
+      setIsWsOpen(true);
+    };
 
     const heartBeatInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
@@ -105,14 +119,31 @@ const ChatPage = ({
         return;
       }
 
+      if (data.type === "USER_JOINED") {
+        const toastId = nanoid();
+        let joinText = "";
+        const joinedName = data.username || data.token;
+        if (data.token === token) {
+           joinText = "You joined the room";
+        } else {
+           joinText = `${joinedName} joined the room`;
+        }
+        setToasts((prev) => [...prev, { id: toastId, text: joinText }]);
+        setTimeout(() => {
+          setToasts((prev) => prev.filter((t) => t.id !== toastId));
+        }, 3000);
+        return;
+      }
+
       setMessages((prev) => [...prev, data]);
     };
 
     return () => {
       clearInterval(heartBeatInterval);
+      setIsWsOpen(false);
       ws.close();
     };
-  }, [roomId, router, token]);
+  }, [roomId, router, token, username]);
 
   const handleDestroy = async () => {
     setMessages([]);
@@ -138,9 +169,10 @@ const ChatPage = ({
   const sendMessage = () => {
     if (!input.trim() || !wsRef.current) return;
 
-    const messagePayload = {
+    const messagePayload: Message = {
       text: input,
       sender: token,
+      username: username,
       time: Date.now(),
     };
 
@@ -209,33 +241,53 @@ const ChatPage = ({
           DESTROY NOW
         </button>
       </header>
-
+      
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
-        {messages.map((msg, i) => {
-          const isMe = msg.sender === token;
-          return (
-            <div
-              key={i}
-              className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
-            >
+        {messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-zinc-600 text-md font-mono tracking-wider">
+              No messages yet... Send a generic message to start.
+            </p>
+          </div>
+        ) : (
+          messages.map((msg, i) => {
+            const isMe = msg.sender === token;
+            return (
               <div
-                className={`max-w-[80%] px-4 py-2 rounded-2xl text-sm ${
-                  isMe
-                    ? "bg-green-600/20 text-green-100 border border-green-600/30 rounded-tr-sm"
-                    : "bg-zinc-800/50 text-zinc-200 border border-zinc-700/50 rounded-tl-sm"
+                key={i}
+                className={`flex flex-col ${
+                  isMe ? "items-end" : "items-start"
                 }`}
               >
-                {msg.text}
+                <div className="flex items-center gap-2 mb-1 px-1">
+                  <span className="text-[10px] text-zinc-500 font-mono">
+                    {isMe ? "You" : (msg.username || msg.sender)}
+                  </span>
+                  {/* {isMe && (
+                    // <span className="text-[10px] text-green-500 font-mono bg-green-500/10 px-1 rounded">
+                    //   (you)
+                    // </span>
+                  )} */}
+                </div>
+                <div
+                  className={`max-w-[80%] px-4 py-2 rounded-2xl text-sm ${
+                    isMe
+                      ? "bg-green-600/20 text-green-100 border border-green-600/30 rounded-tr-sm"
+                      : "bg-zinc-800/50 text-zinc-200 border border-zinc-700/50 rounded-tl-sm"
+                  }`}
+                >
+                  {msg.text}
+                </div>
+                <span className="text-[10px] text-zinc-600 mt-1 px-1">
+                  {new Date(msg.time).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
               </div>
-              <span className="text-[10px] text-zinc-600 mt-1 px-1">
-                {new Date(msg.time).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </span>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
         <div ref={messagesEndRef} />
       </div>
 
@@ -248,27 +300,42 @@ const ChatPage = ({
             <input
               ref={inputRef}
               type="text"
-              placeholder="Type Message..."
+              placeholder={isWsOpen ? "Type Message..." : "Connecting..."}
               autoFocus
+              disabled={!isWsOpen}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && input.trim()) {
+                if (e.key === "Enter" && input.trim() && isWsOpen) {
                   sendMessage();
                 }
               }}
-              className="w-full bg-black text-zinc-100 placeholder:text-zinc-700 py-3 pl-8 pr-4 text-sm border border-zinc-800 focus:border-green-900/50 focus:ring-1 focus:ring-green-900/50 transition-all outline-none rounded-md"
+              className="w-full bg-black text-zinc-100 placeholder:text-zinc-700 py-3 pl-8 pr-4 text-sm border border-zinc-800 focus:border-green-900/50 focus:ring-1 focus:ring-green-900/50 transition-all outline-none rounded-md disabled:opacity-50"
             />
           </div>
           <button
             onClick={sendMessage}
-            disabled={!input.trim()}
+            disabled={!input.trim() || !isWsOpen}
             className="px-6 bg-zinc-100 text-black font-bold text-sm hover:bg-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-md"
           >
             SEND
           </button>
         </div>
       </div>
+      
+      {/* Toast Notifications Box */}
+      {toasts.length > 0 && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 flex flex-col gap-2 z-50 pointer-events-none">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className="px-4 py-2 bg-zinc-800/90 text-zinc-200 text-xs font-mono rounded border border-zinc-700 shadow-xl break-normal whitespace-nowrap animate-in fade-in slide-in-from-bottom-2 duration-300"
+            >
+              {toast.text}
+            </div>
+          ))}
+        </div>
+      )}
     </main>
   );
 };

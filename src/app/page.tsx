@@ -15,6 +15,7 @@ const generateUsername = () => {
 
 export default function Home() {
   const [username, setUsername] = useState("Your Username");
+  const [isJoining, setIsJoining] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const router = useRouter();
@@ -36,10 +37,11 @@ export default function Home() {
   }, []);
 
   const joinRoom = () => {
+    setIsJoining(true);
     router.push(`/room/${inputRef.current?.value}`);
   };
 
-  const { mutate: createRoom } = useMutation({
+  const { mutate: createRoom, isPending } = useMutation({
     mutationFn: async () => {
       const res = await client.room.create.post();
       if (res.status === 200) {
@@ -71,9 +73,10 @@ export default function Home() {
             </div>
             <button
               onClick={() => createRoom()}
-              className="w-full bg-zinc-100 text-black p-3 text-sm font-bold hover:bg-zinc-50 hover:text-black transition-colors cursor-pointer disabled:opacity-50"
+              disabled={isPending}
+              className="w-full bg-zinc-100 text-black p-3 text-sm font-bold hover:bg-zinc-50 hover:text-black transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              CREATE SECURE ROOM
+              {isPending ? "CREATING..." : "CREATE SECURE ROOM"}
             </button>
             <div className="flex justify-between">
               <input
@@ -81,17 +84,20 @@ export default function Home() {
                 ref={inputRef}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && inputRef.current?.value.trim()) {
-                    joinRoom;
+                    joinRoom();
                   }
                 }}
                 className="border w-full border-zinc-800 bg-zinc-950 p-3 mr-4 outline-none text-sm text-zinc-400 font-mono"
                 type="text"
               />
               <button
-                onClick={joinRoom}
-                className=" bg-zinc-100 w-full text-black px-6 text-sm  font-bold hover:bg-zinc-50 hover:text-black transition-colors cursor-pointer disabled:opacity-50"
+                onClick={()=>{
+                  joinRoom();
+                }}
+                disabled={isJoining}
+                className=" bg-zinc-100 w-full text-black px-6 text-sm  font-bold hover:bg-zinc-50 hover:text-black transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                JOIN
+                {isJoining ? "JOINING..." : "JOIN"}
               </button>
             </div>
           </div>
