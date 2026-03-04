@@ -31,6 +31,7 @@ const rooms = new Elysia({ prefix: "/room" })
         }))
         await redis.del(`meta:${roomId}`)
         await redis.del(`room:${roomId}:users`)
+        await redis.del(`room:${roomId}:messages`)
         return { success: true }
     })
 
