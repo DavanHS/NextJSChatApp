@@ -109,7 +109,7 @@ const ChatPage = ({
         return;
       }
 
-      if(data.type === "ERROR"){
+      if (data.type === "ERROR") {
         router.push("/");
         console.log(data.message);
       }
@@ -124,9 +124,9 @@ const ChatPage = ({
         let joinText = "";
         const joinedName = data.username || data.token;
         if (data.token === token) {
-           joinText = "You joined the room";
+          joinText = "You joined the room";
         } else {
-           joinText = `${joinedName} joined the room`;
+          joinText = `${joinedName} joined the room`;
         }
         setToasts((prev) => [...prev, { id: toastId, text: joinText }]);
         setTimeout(() => {
@@ -135,7 +135,9 @@ const ChatPage = ({
         return;
       }
 
-      setMessages((prev) => [...prev, data]);
+      if (data.type === "MESSAGE" && data.payload) {
+        setMessages((prev) => [...prev, data.payload]);
+      }
     };
 
     return () => {
@@ -176,7 +178,12 @@ const ChatPage = ({
       time: Date.now(),
     };
 
-    wsRef.current.send(JSON.stringify(messagePayload));
+    wsRef.current.send(
+      JSON.stringify({
+        type: "MESSAGE",
+        payload: messagePayload,
+      }),
+    );
 
     setMessages((prev) => [...prev, messagePayload]);
     setInput("");
@@ -241,7 +248,7 @@ const ChatPage = ({
           DESTROY NOW
         </button>
       </header>
-      
+
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
@@ -261,7 +268,7 @@ const ChatPage = ({
               >
                 <div className="flex items-center gap-2 mb-1 px-1">
                   <span className="text-[10px] text-zinc-500 font-mono">
-                    {isMe ? "You" : (msg.username || msg.sender)}
+                    {isMe ? "You" : msg.username || msg.sender}
                   </span>
                   {/* {isMe && (
                     // <span className="text-[10px] text-green-500 font-mono bg-green-500/10 px-1 rounded">
@@ -322,7 +329,7 @@ const ChatPage = ({
           </button>
         </div>
       </div>
-      
+
       {/* Toast Notifications Box */}
       {toasts.length > 0 && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 flex flex-col gap-2 z-50 pointer-events-none">

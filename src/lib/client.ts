@@ -1,4 +1,7 @@
-import { treaty } from '@elysiajs/eden'
-import type { app } from '../app/api/[[...slugs]]/route'
+import type { AppType } from '../app/api/[[...slugs]]/route'
+import { hc } from 'hono/client'
 
-export const client = treaty<typeof app>('termi-chat-app.vercel.app').api
+const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+
+// export const client = hc<AppType>('termi-chat-app.vercel.app/')
+export const client = hc<AppType>(baseUrl)
