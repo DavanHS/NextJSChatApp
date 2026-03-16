@@ -8,6 +8,9 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write 
 
     steps:
     - name: Checkout Code
@@ -30,6 +33,6 @@ jobs:
     - name: Deploy to Azure
       uses: azure/webapps-deploy@v2
       with:
-        app-name: 'termichat-backend-server'
+        app-name: 'termichat-backend-server' # We will set this in Azure next
         publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
         images: 'ghcr.io/davanhs/termichat-backend:latest'
