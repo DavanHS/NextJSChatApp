@@ -13,7 +13,7 @@ function formatTimeRemaining(seconds: number) {
 type Message = {
   text: string;
   sender: string;
-  username: string; // The UI-friendly name
+  username: string;
   time: number;
 };
 
@@ -33,6 +33,7 @@ const ChatPage = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [username, setUsername] = useState("anonymous");
   const [isWsOpen, setIsWsOpen] = useState(false);
+  const [isRateLimited, setIsRateLimited] = useState(false);
   const [toasts, setToasts] = useState<{ id: string; text: string }[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -112,6 +113,18 @@ const ChatPage = ({
       if (data.type === "ERROR") {
         router.push("/");
         console.log(data.message);
+        return;
+      }
+
+      if (data.type === "WARNING") {
+        const toastId = nanoid();
+        setToasts((prev) => [...prev, { id: toastId, text: data.message }]);
+        setTimeout(() => {
+          setToasts((prev) => prev.filter((t) => t.id !== toastId));
+        }, 3000);
+        setIsRateLimited(true);
+        setTimeout(() => setIsRateLimited(false), 5000);
+        return;
       }
 
       if (data.error) {
@@ -136,6 +149,8 @@ const ChatPage = ({
       }
 
       if (data.type === "MESSAGE" && data.payload) {
+        // console.log(data.payload);
+        // console.log("from server:", messages)
         setMessages((prev) => [...prev, data.payload]);
       }
     };
@@ -159,13 +174,12 @@ const ChatPage = ({
       );
     }
 
-    router.push("/");
-
     await fetch("/api/room/destroy", {
       method: "post",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ roomId, token }),
     });
+    router.push("/");
   };
 
   const sendMessage = () => {
@@ -178,6 +192,8 @@ const ChatPage = ({
       time: Date.now(),
     };
 
+    // console.log(messagePayload)
+
     wsRef.current.send(
       JSON.stringify({
         type: "MESSAGE",
@@ -186,6 +202,7 @@ const ChatPage = ({
     );
 
     setMessages((prev) => [...prev, messagePayload]);
+    // console.log("Client side:",messages)
     setInput("");
     inputRef.current?.focus();
   };
@@ -313,7 +330,7 @@ const ChatPage = ({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && input.trim() && isWsOpen) {
+                if (e.key === "Enter" && input.trim() && isWsOpen && !isRateLimited) {
                   sendMessage();
                 }
               }}
@@ -322,7 +339,7 @@ const ChatPage = ({
           </div>
           <button
             onClick={sendMessage}
-            disabled={!input.trim() || !isWsOpen}
+            disabled={!input.trim() || !isWsOpen || isRateLimited}
             className="px-6 bg-zinc-100 text-black font-bold text-sm hover:bg-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-md"
           >
             SEND
@@ -330,7 +347,6 @@ const ChatPage = ({
         </div>
       </div>
 
-      {/* Toast Notifications Box */}
       {toasts.length > 0 && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 flex flex-col gap-2 z-50 pointer-events-none">
           {toasts.map((toast) => (

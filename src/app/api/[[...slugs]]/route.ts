@@ -3,10 +3,14 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { handle } from 'hono/vercel';
 import { nanoid } from 'nanoid'
+import { z } from 'zod'
 
 export const ROOM_TTL_MILISECONDS = 60 * 10 * 1000
 
-
+const destroySchema = z.object({
+    roomId: z.string().min(1, "roomId is required"),
+    token: z.string().min(1, "token is required"),
+})
 
 const roomApp = new Hono()
     .post("/create", async (c) => {
@@ -21,16 +25,17 @@ const roomApp = new Hono()
         return c.json({ roomId })
     })
     .post("/destroy", async (c) => {
-        /*
-        TODO:
-        1. Handling the request with authorization access. 
-        */
         const body = await c.req.json();
-        const roomId = body.roomId as string;
-        await redis.publish(roomId, JSON.stringify({
-            type: "ROOM_DESTROYED",
-            text: "Room was destroyed by host."
-        }))
+        const parsed = destroySchema.safeParse(body);
+        if (!parsed.success) {
+            return c.json({ error: "Invalid request", details: parsed.error.issues }, 400);
+        }
+
+        const { roomId, token } = parsed.data;
+        const isMember = await redis.sismember(`room:${roomId}:users`, token);
+        if (!isMember) {
+            return c.json({ error: "Not authorized to destroy this room" }, 403);
+        }
         await redis.del(`meta:${roomId}`)
         await redis.del(`room:${roomId}:users`)
         return c.json({ success: true })
