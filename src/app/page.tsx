@@ -2,8 +2,8 @@
 import { client } from "@/lib/client";
 import { useMutation } from "@tanstack/react-query";
 import { nanoid } from "nanoid";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, Suspense } from "react";
 
 const ANIMALS = ["lion", "tiger", "wolf", "leopard", "cheetah"];
 const STORAGE_KEY = "chat_username";
@@ -13,12 +13,32 @@ const generateUsername = () => {
   return `anonymous-${word}-${nanoid(5)}`;
 };
 
-export default function Home() {
+// Maps error codes from the proxy middleware to user-friendly messages
+const ERROR_MESSAGES: Record<string, string> = {
+  "room-not-found": "Room not found or has expired",
+  "room-is-full": "Room is full (max 3 users)",
+};
+
+function HomeContent() {
   const [username, setUsername] = useState("Your Username");
   const [isJoining, setIsJoining] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Read error params from URL (set by proxy middleware on validation failure)
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    if (errorParam && ERROR_MESSAGES[errorParam]) {
+      setError(ERROR_MESSAGES[errorParam]);
+      setIsJoining(false);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("error");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const main = () => {
@@ -59,6 +79,18 @@ export default function Home() {
           </h1>
           <p className="text-zinc-500 text-sm">self destructing chat room</p>
         </div>
+
+        {error && (
+          <div className="flex items-center justify-between border border-red-900/50 bg-red-950/20 px-4 py-3 rounded">
+            <span className="text-red-400 text-sm font-mono">{error}</span>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-400 hover:text-red-300 text-sm font-bold ml-4 transition-colors"
+            >
+              X
+            </button>
+          </div>
+        )}
 
         <div className="border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur-md">
           <div className="space-y-5">
@@ -105,5 +137,17 @@ export default function Home() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <main className="flex min-h-screen flex-col bg-black items-center justify-center p-4">
+        <div className="text-green-500 font-mono text-sm">Loading...</div>
+      </main>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }

@@ -36,6 +36,7 @@ const ChatPage = ({
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [toasts, setToasts] = useState<{ id: string; text: string }[]>([]);
   const [reconnectKey, setReconnectKey] = useState(0);
+  const [connectionStatus, setConnectionStatus] = useState<"connected" | "reconnecting" | "disconnected">("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -90,6 +91,8 @@ const ChatPage = ({
 
     ws.onopen = () => {
       setIsWsOpen(true);
+      setConnectionStatus("connected");
+      retryCountRef.current = 0;
     };
 
     const heartBeatInterval = setInterval(() => {
@@ -102,7 +105,13 @@ const ChatPage = ({
       const data = JSON.parse(event.data);
 
       if (data.type === "ROOM_DESTROYED") {
-        router.push("/");
+        sessionStorage.removeItem(`chat_history_${roomId}`);
+        const toastId = nanoid();
+        setToasts((prev) => [...prev, { id: toastId, text: data.text || "Room was destroyed" }]);
+        setTimeout(() => {
+          setToasts((prev) => prev.filter((t) => t.id !== toastId));
+        }, 3000);
+        setTimeout(() => router.push("/"), 1500);
         return;
       }
       if (data.type === "PONG" || data.type === "PING") {
@@ -110,8 +119,12 @@ const ChatPage = ({
       }
 
       if (data.type === "ERROR") {
-        router.push("/");
-        console.log(data.message);
+        const toastId = nanoid();
+        setToasts((prev) => [...prev, { id: toastId, text: data.message }]);
+        setTimeout(() => {
+          setToasts((prev) => prev.filter((t) => t.id !== toastId));
+        }, 3000);
+        setTimeout(() => router.push("/"), 1500);
         return;
       }
 
@@ -158,10 +171,16 @@ const ChatPage = ({
       clearInterval(heartBeatInterval);
       setIsWsOpen(false);
 
-      if (isDestroyingRef.current) return;
+      if (isDestroyingRef.current) {
+        setConnectionStatus("disconnected");
+        return;
+      }
+      if (timeLeft <= 0) {
+        setConnectionStatus("disconnected");
+        return;
+      }
 
-      if (timeLeft <= 0) return;
-
+      setConnectionStatus("reconnecting");
       const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000);
       retryCountRef.current++;
 
@@ -183,12 +202,13 @@ const ChatPage = ({
   const handleDestroy = async () => {
     isDestroyingRef.current = true; // prevent reconnection on intentional close
     setMessages([]);
+    sessionStorage.removeItem(`chat_history_${roomId}`);
     console.log(messages);
     if (wsRef.current) {
       wsRef.current.send(
         JSON.stringify({
           type: "ROOM_DESTROYED",
-          text: "Room is destroyed",
+          text: `${username} destroyed the room`,
         }),
       );
     }
@@ -198,7 +218,13 @@ const ChatPage = ({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ roomId, token }),
     });
-    router.push("/");
+    // Show toast before redirecting
+    const toastId = nanoid();
+    setToasts((prev) => [...prev, { id: toastId, text: "Room destroyed" }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== toastId));
+    }, 3000);
+    setTimeout(() => router.push("/"), 1500);
   };
 
   const sendMessage = () => {
@@ -232,9 +258,16 @@ const ChatPage = ({
     setCopyStatus("Copied!");
     setTimeout(() => setCopyStatus("Copy"), 2000);
   };
+  
   useEffect(() => {
     if (timeLeft <= 0) {
-      router.push("/");
+      sessionStorage.removeItem(`chat_history_${roomId}`);
+      const toastId = nanoid();
+      setToasts((prev) => [...prev, { id: toastId, text: "Room expired" }]);
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== toastId));
+      }, 3000);
+      setTimeout(() => router.push("/"), 1500);
     }
   }, [timeLeft, router]);
 
@@ -277,12 +310,28 @@ const ChatPage = ({
             </span>
           </div>
         </div>
-        <button
-          onClick={handleDestroy}
-          className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2 px-3 py-2 text-xs font-bold tracking-wider rounded shadow-lg shadow-red-900/20 transition-all hover:scale-105 active:scale-95"
-        >
-          DESTROY NOW
-        </button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                connectionStatus === "connected"
+                  ? "bg-green-500"
+                  : connectionStatus === "reconnecting"
+                    ? "bg-amber-500 animate-pulse"
+                    : "bg-red-500"
+              }`}
+            />
+            <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">
+              {connectionStatus}
+            </span>
+          </div>
+          <button
+            onClick={handleDestroy}
+            className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2 px-3 py-2 text-xs font-bold tracking-wider rounded shadow-lg shadow-red-900/20 transition-all hover:scale-105 active:scale-95"
+          >
+            DESTROY NOW
+          </button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
