@@ -31,13 +31,17 @@ const ChatPage = ({
   const [copyStatus, setCopyStatus] = useState("Copy");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [username] = useState(() => localStorage.getItem("chat_username") || "anonymous");
+  const [username] = useState(() => (typeof Window !== "undefined" ? localStorage.getItem("chat_username") : "anonymous") ||  "anonymous");
   const [isWsOpen, setIsWsOpen] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [toasts, setToasts] = useState<{ id: string; text: string }[]>([]);
+  const [reconnectKey, setReconnectKey] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isDestroyingRef = useRef(false);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCountRef = useRef(0);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -150,14 +154,34 @@ const ChatPage = ({
       }
     };
 
-    return () => {
+    ws.onclose = () => {
       clearInterval(heartBeatInterval);
       setIsWsOpen(false);
+
+      if (isDestroyingRef.current) return;
+
+      if (timeLeft <= 0) return;
+
+      const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000);
+      retryCountRef.current++;
+
+      console.log(`WS reconnecting in ${delay / 1000}s (attempt ${retryCountRef.current})...`);
+      reconnectTimeoutRef.current = setTimeout(() => {
+        setReconnectKey((prev) => prev + 1);
+      }, delay);
+    };
+
+    return () => {
+      clearInterval(heartBeatInterval);
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
       ws.close();
     };
-  }, [roomId, router, token, username]);
+  }, [roomId, router, token, username, reconnectKey]);
 
   const handleDestroy = async () => {
+    isDestroyingRef.current = true; // prevent reconnection on intentional close
     setMessages([]);
     console.log(messages);
     if (wsRef.current) {
