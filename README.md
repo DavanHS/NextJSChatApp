@@ -11,7 +11,7 @@ A high-performance, real-time chat application featuring secure, self-destructin
 * **Redis Integration**: Utilizes Redis for room metadata management, TTL (Time-To-Live) enforcement, and Pub/Sub for cross-server message broadcasting.
 * **Terminal-Inspired UI**: A sleek, high-contrast dark interface built with Tailwind CSS, designed for a focused developer-centric experience.
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 * **Frontend**: Next.js 15 (App Router), React 19, Tailwind CSS.
 * **Backend/WS**: ElysiaJS (running on Bun/Node), WebSockets.
