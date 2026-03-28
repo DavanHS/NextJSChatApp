@@ -31,18 +31,13 @@ const ChatPage = ({
   const [copyStatus, setCopyStatus] = useState("Copy");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [username, setUsername] = useState("anonymous");
+  const [username] = useState(() => localStorage.getItem("chat_username") || "anonymous");
   const [isWsOpen, setIsWsOpen] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [toasts, setToasts] = useState<{ id: string; text: string }[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const stored = localStorage.getItem("chat_username");
-    if (stored) setUsername(stored);
-  }, []);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
