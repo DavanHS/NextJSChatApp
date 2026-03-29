@@ -55,6 +55,7 @@ const ChatPage = ({
   const keyRef = useRef<CryptoKey | null>(null);
   const prevMsgCountRef = useRef(0);
   const wsCancelledRef = useRef(false);
+  const prevInputLenRef = useRef(0);
   const [decryptedMessages, setDecryptedMessages] = useState<{ text: string; sender: string; username: string; time: number; isCode: boolean }[]>([]);
 
 
@@ -523,10 +524,7 @@ const ChatPage = ({
           </div>
           {/* Toggle button — green border when code mode is active */}
           <button
-            onClick={() => {
-              setIsCodeForNextMessage((prev) => !prev);
-              setInput("");
-            }}
+            onClick={() => setIsCodeForNextMessage((prev) => !prev)}
             disabled={!isWsOpen || !isKeyReady}
             className={`p-3 border rounded-md transition-colors flex-shrink-0 ${
               isCodeForNextMessage
