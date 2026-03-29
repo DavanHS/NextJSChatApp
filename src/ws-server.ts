@@ -14,6 +14,7 @@ const wsMessageSchema = z.discriminatedUnion('type', [
             sender: z.string().min(1, "sender is required"),
             username: z.string().min(1, "username is required"),
             iv: z.string().optional(),
+            isCode: z.boolean(),
         }),
     }),
     z.object({ type: z.literal('ROOM_DESTROYED') }),

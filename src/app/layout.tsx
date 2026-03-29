@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import "highlight.js/styles/github-dark.css"; // dark theme for code block syntax highlighting
 import { Providers } from "@/components/providers";
 
 const jetbrainsMono = JetBrains_Mono({

@@ -10,7 +10,7 @@
 
 // Fixed salt for PBKDF2 — same room code always produces the same key
 // This is needed so both users derive the identical key without sharing anything
-const SALT_STRING = "termichat-room-salt";
+const SALT_STRING = process.env.SALT_KEY!;
 
 // Convert a string to Uint8Array
 function encode(text: string): Uint8Array<ArrayBuffer> {

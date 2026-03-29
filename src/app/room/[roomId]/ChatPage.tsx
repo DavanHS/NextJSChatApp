@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { deriveKey, encrypt, decrypt } from "@/lib/crypto";
+import { highlightCode } from "@/lib/codeHighlight";
+import { Code, Copy, Check } from "lucide-react";
 
 function formatTimeRemaining(seconds: number) {
   const mins = Math.floor(seconds / 60);
@@ -17,6 +19,7 @@ type Message = {
   username: string;
   time: number;
   iv?: string;
+  isCode: boolean; // true for code snippets, false for regular text
 };
 
 const ChatPage = ({
@@ -33,6 +36,8 @@ const ChatPage = ({
   const { timeLeft } = useCountdown(expireAt);
   const [copyStatus, setCopyStatus] = useState("Copy");
   const [input, setInput] = useState("");
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null); // tracks which code block shows "Copied"
+  const [isCodeForNextMessage, setIsCodeForNextMessage] = useState(false); // set by paste detection or toggle
   const [messages, setMessages] = useState<Message[]>([]);
   const [username] = useState(() => (typeof Window !== "undefined" ? localStorage.getItem("chat_username") : "anonymous") ||  "anonymous");
   const [isWsOpen, setIsWsOpen] = useState(false);
@@ -43,13 +48,14 @@ const ChatPage = ({
   const [isKeyReady, setIsKeyReady] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isDestroyingRef = useRef(false);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryCountRef = useRef(0);
   const keyRef = useRef<CryptoKey | null>(null);
   const prevMsgCountRef = useRef(0);
-  const [decryptedMessages, setDecryptedMessages] = useState<{ text: string; sender: string; username: string; time: number }[]>([]);
+  const wsCancelledRef = useRef(false);
+  const [decryptedMessages, setDecryptedMessages] = useState<{ text: string; sender: string; username: string; time: number; isCode: boolean }[]>([]);
 
 
   useEffect(() => {
@@ -63,6 +69,7 @@ const ChatPage = ({
     const key = keyRef.current;
 
     if (messages.length > prevMsgCountRef.current && prevMsgCountRef.current > 0) {
+      // New messages added — only decrypt the new ones and append
       const newMessages = messages.slice(prevMsgCountRef.current);
       Promise.all(
         newMessages.map(async (msg) => ({
@@ -70,6 +77,7 @@ const ChatPage = ({
           sender: msg.sender,
           username: msg.username,
           time: msg.time,
+          isCode: msg.isCode, // pass through the code flag for rendering
         }))
       ).then((result) => {
         if (!cancelled) {
@@ -78,12 +86,14 @@ const ChatPage = ({
         }
       });
     } else {
+      // Messages reset or key changed — decrypt all (refresh, room clear, key ready)
       Promise.all(
         messages.map(async (msg) => ({
           text: msg.iv ? await decrypt(msg.text, msg.iv, key) : msg.text,
           sender: msg.sender,
           username: msg.username,
           time: msg.time,
+          isCode: msg.isCode,
         }))
       ).then((result) => {
         if (!cancelled) {
@@ -130,9 +140,21 @@ const ChatPage = ({
     }
   }, [roomId]);
 
+  // Scroll to bottom when decrypted messages change (not encrypted messages state)
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [decryptedMessages]);
+
+  // Auto-expand textarea as user types — grows up to max height, then scrolls
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      const scrollH = textareaRef.current.scrollHeight;
+      textareaRef.current.style.height = `${scrollH}px`;
+      // Hide scrollbar when content fits, show when it exceeds max (192px = max-h-48)
+      textareaRef.current.style.overflowY = scrollH > 192 ? "auto" : "hidden";
+    }
+  }, [input]);
 
   useEffect(() => {
     let cancelled = false;
@@ -234,6 +256,7 @@ const ChatPage = ({
       clearInterval(heartBeatInterval);
       setIsWsOpen(false);
 
+      if (wsCancelledRef.current) return;
       if (isDestroyingRef.current) {
         setConnectionStatus("disconnected");
         return;
@@ -254,6 +277,7 @@ const ChatPage = ({
     };
 
     return () => {
+      wsCancelledRef.current = true;
       clearInterval(heartBeatInterval);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
@@ -266,7 +290,7 @@ const ChatPage = ({
     isDestroyingRef.current = true; // prevent reconnection on intentional close
     setMessages([]);
     sessionStorage.removeItem(`chat_history_${roomId}`);
-    console.log(messages);
+    // console.log(messages);
     if (wsRef.current) {
       wsRef.current.send(
         JSON.stringify({
@@ -301,6 +325,7 @@ const ChatPage = ({
       sender: token,
       username: username,
       time: Date.now(),
+      isCode: isCodeForNextMessage,
     };
 
     wsRef.current.send(
@@ -312,7 +337,8 @@ const ChatPage = ({
 
     setMessages((prev) => [...prev, messagePayload]);
     setInput("");
-    inputRef.current?.focus();
+    setIsCodeForNextMessage(false);
+    textareaRef.current?.focus();
   };
 
   const copyLink = () => {
@@ -397,7 +423,7 @@ const ChatPage = ({
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {decryptedMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <p className="text-zinc-600 text-md font-mono tracking-wider">
@@ -418,21 +444,39 @@ const ChatPage = ({
                   <span className="text-[10px] text-zinc-500 font-mono">
                     {isMe ? "You" : msg.username || msg.sender}
                   </span>
-                  {/* {isMe && (
-                    // <span className="text-[10px] text-green-500 font-mono bg-green-500/10 px-1 rounded">
-                    //   (you)
-                    // </span>
-                  )} */}
                 </div>
-                <div
-                  className={`max-w-[80%] px-4 py-2 rounded-2xl text-sm wrap-break-word ${
-                    isMe
-                      ? "bg-green-600/20 text-green-100 border border-green-600/30 rounded-tr-sm"
-                      : "bg-zinc-800/50 text-zinc-200 border border-zinc-700/50 rounded-tl-sm"
-                  }`}
-                >
-                  {msg.text}
-                </div>
+
+                {/* Code block — black background, syntax highlighting, copy icon */}
+                {msg.isCode ? (
+                  <div className="relative max-w-[55%] group overflow-x-hidden">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(msg.text);
+                        setCopiedIndex(i);
+                        setTimeout(() => setCopiedIndex(null), 2000);
+                      }}
+                      className="absolute top-2 right-2 p-3 m-3 bg-zinc-800/80 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200 transition-colors opacity-0 group-hover:opacity-100 z-10"
+                      title="Copy code"
+                    >
+                      {copiedIndex === i ? <Check size={14} /> : <Copy size={20} />}
+                    </button>
+                    <pre
+                      className="bg-black text-zinc-100 px-4 py-3 rounded-2xl text-sm font-mono border border-zinc-800 overflow-x-auto"
+                      dangerouslySetInnerHTML={{ __html: highlightCode(msg.text) }}
+                    />
+                  </div>
+                ) : (
+                  /* Regular text message */
+                  <div
+                    className={`max-w-[80%] px-4 py-2 rounded-2xl text-sm wrap-break-word ${
+                      isMe
+                        ? "bg-green-600/20 text-green-100 border border-green-600/30 rounded-tr-sm"
+                        : "bg-zinc-800/50 text-zinc-200 border border-zinc-700/50 rounded-tl-sm"
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+                )}
                 <span className="text-[10px] text-zinc-600 mt-1 px-1">
                   {new Date(msg.time).toLocaleTimeString([], {
                     hour: "2-digit",
@@ -447,31 +491,56 @@ const ChatPage = ({
       </div>
 
       <div className="p-4 bg-zinc-900/30 border-t border-zinc-800">
-        <div className="flex gap-2 max-w-4xl mx-auto">
+        <div className="flex items-end gap-2 max-w-4xl mx-auto">
           <div className="flex-1 relative group">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-green-500 animate-pulse font-mono">
+            <span className="absolute left-4 top-3 text-green-500 animate-pulse font-mono">
               {">"}
             </span>
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder={isWsOpen ? "Type Message..." : "Connecting..."}
+            <textarea
+              ref={textareaRef}
+              placeholder={isWsOpen ? "Type a message or paste code..." : "Connecting..."}
               autoFocus
               disabled={!isWsOpen || !isKeyReady}
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onPaste={(e) => {
+                const pastedText = e.clipboardData.getData("text");
+                const isMultiLine = pastedText.includes("\n");
+                const hasIndentation = pastedText.split("\n").some((l) => /^(  |\t)/.test(l));
+                if (isMultiLine && hasIndentation) {
+                  setIsCodeForNextMessage(true);
+                }
+              }}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && input.trim() && isWsOpen && !isRateLimited) {
+                if (e.key === "Enter" && !e.shiftKey && input.trim() && isWsOpen && !isRateLimited && isKeyReady) {
+                  e.preventDefault();
                   sendMessage();
                 }
               }}
-              className="w-full bg-black text-zinc-100 placeholder:text-zinc-700 py-3 pl-8 pr-4 text-sm border border-zinc-800 focus:border-green-900/50 focus:ring-1 focus:ring-green-900/50 transition-all outline-none rounded-md disabled:opacity-50"
+              rows={1}
+              className=" align-bottom overflow-hidden w-full bg-black text-zinc-100 placeholder:text-zinc-700 py-3 pl-8 pr-4 text-sm border border-zinc-800 focus:border-green-900/50 focus:ring-1 focus:ring-green-900/50 transition-all outline-none rounded-md disabled:opacity-50 resize-none font-mono max-h-48"
             />
           </div>
+          {/* Toggle button — green border when code mode is active */}
+          <button
+            onClick={() => {
+              setIsCodeForNextMessage((prev) => !prev);
+              setInput("");
+            }}
+            disabled={!isWsOpen || !isKeyReady}
+            className={`p-3 border rounded-md transition-colors flex-shrink-0 ${
+              isCodeForNextMessage
+                ? "border-green-500 text-green-500 bg-green-500/10"
+                : "border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
+            }`}
+            title={isCodeForNextMessage ? "Code mode on" : "Toggle code mode"}
+          >
+            <Code size={18} />
+          </button>
           <button
             onClick={sendMessage}
-            disabled={!input.trim() || !isWsOpen || isRateLimited}
-            className="px-6 bg-zinc-100 text-black font-bold text-sm hover:bg-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-md"
+            disabled={!input.trim() || !isWsOpen || isRateLimited || !isKeyReady}
+            className="px-6 py-3 bg-zinc-100 text-black font-bold text-sm hover:bg-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-md flex-shrink-0"
           >
             SEND
           </button>
