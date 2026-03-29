@@ -10,18 +10,22 @@ Built out of necessity during college computer labs where phones aren't allowed.
 
 The idea: create a dead-simple chat room that works in a browser. No accounts, no installs, no phone needed. Just type a room code and start talking. The self-destructing nature ensures no chat history lingers on shared lab computers.
 
-One limitation still being worked on: the chat doesn't preserve code formatting (indentation, whitespace), which matters when sharing Python snippets or other whitespace-sensitive code.
+And since most of what gets shared between lab computers is code, the app had to handle code properly — syntax highlighting, paste detection, and proper formatting preservation.
 
 ## Features
 
-- **Real-time Messaging** — Low-latency WebSocket communication via a dedicated Bun server. Messages delivered in milliseconds.
+- **Real-Time Messaging** — Low-latency WebSocket communication via a dedicated Bun server. Messages delivered in milliseconds.
 - **Self-Destructing Rooms** — Rooms expire after 10 minutes with a live countdown timer. Host can destroy the room instantly at any time.
-- **End-to-End Encryption (E2EE)** — AES-256-GCM encryption with PBKDF2 key derivation (100k iterations). The server never sees plaintext — only relays ciphertext.
+- **End-to-End Encryption (E2EE)** — AES-256-GCM encryption with PBKDF2 key derivation (100k iterations). The server never sees plaintext — only relays ciphertext. Key derived from room code alone — no key exchange protocol, no URL changes, verbal sharing possible.
+- **Code Snippet Sharing** — Syntax highlighting via highlight.js (Python, JS, TS, Java, C, Go, Rust). Paste multi-line indented code and it auto-detects as a code block. Manual toggle available for typed code. Hover-to-copy with visual feedback.
+- **WebSocket Reconnection** — Exponential backoff on disconnect (1s → 2s → 4s → cap 30s). Skips reconnection if room is expired or intentionally destroyed. Distinguishes intentional close from unexpected drop.
+- **Connection Status Indicator** — Real-time status in header: green = connected, amber pulsing = reconnecting (with attempt count), red = disconnected.
+- **Session Storage Persistence** — Encrypted messages saved to sessionStorage on page unload. Restored on reload with automatic decryption. Cleared on room destruction or expiry.
 - **Rate Limiting** — Server-side protection against message spam (10 messages per 5 seconds per user). Client UI adapts by disabling the send button during cooldown.
 - **Input Validation** — Zod schemas validate all API requests and WebSocket messages. Malformed data is rejected before processing.
 - **Room Authorization** — Only verified room members can destroy rooms. Token-based authentication via cookies.
-- **Connection Resilience** — Heartbeat ping/pong every 30 seconds to keep connections alive. Graceful error handling with user-facing feedback.
-- **Terminal-Inspired UI** — Dark, high-contrast interface with JetBrains Mono font. Clean, developer-centric experience built with Tailwind CSS.
+- **Heartbeat Ping/Pong** — Client sends ping every 30 seconds to keep WebSocket connections alive.
+- **Terminal-Inspired UI** — Dark, high-contrast interface with JetBrains Mono font. Custom thin scrollbars, auto-expanding textarea, toast notifications. Clean, developer-centric experience built with Tailwind CSS v4.
 
 ## Architecture
 
@@ -35,7 +39,8 @@ TermiChat uses a decoupled two-process architecture:
 │  • API Routes (Hono)    │     │  • Message Broadcasting │
 │  • Proxy Middleware     │     │  • Rate Limiting        │
 │  • Client-side E2EE     │     │  • Zod Validation       │
-│                         │     │  • Auth Verification    │
+│  • Code Highlighting    │     │  • Auth Verification    │
+│  • Paste Detection      │     │  • Exponential Reconnect│
 └───────────┬─────────────┘     └───────────┬─────────────┘
             │                               │
             └───────────┬───────────────────┘
@@ -67,11 +72,29 @@ A single Bun WebSocket server can handle:
 ## Security
 
 - **E2EE**: Messages encrypted client-side with AES-256-GCM. Server only sees ciphertext.
-- **Key derivation**: PBKDF2 with 100k iterations, room code as passphrase. No key stored on server.
-- **Rate limiting**: In-memory per-token tracking on WS server. Prevents message flooding.
-- **Input validation**: Zod schemas enforce correct message shape and API request format.
+- **Key derivation**: PBKDF2 with 100k iterations, room code as passphrase. No key stored on server. Both users derive identical keys independently — no key exchange needed.
+- **Rate limiting**: In-memory per-token sliding window on WS server. Prevents message flooding.
+- **Input validation**: Zod schemas enforce correct message shape and API request format. Max 5000 characters per message.
 - **Destroy authorization**: Only verified room members can destroy rooms (sismember token check).
-- **Ephemeral by design**: No message persistence. SessionStorage cleared on room destruction.
+- **Ephemeral by design**: No message persistence. SessionStorage stores encrypted ciphertext — cleared on room destruction.
+- **Cookie-based tokens**: Unique nanoid token per user, verified against Redis set on every WebSocket connection.
+
+## Code Snippet Sharing
+
+The app handles code as a first-class citizen, not an afterthought:
+
+```
+User pastes indented code
+  → onPaste detects multi-line + indentation
+  → auto-enables code mode
+  → Enter sends
+  → highlight.js renders with syntax highlighting
+  → hover to copy
+```
+
+**Detection logic:** On paste, the app checks if the pasted content is multi-line AND has consistent indentation (at least one line starts with spaces or tabs). If both conditions are met, the message is marked as code automatically. A toggle button allows manual override for typed code.
+
+**Supported languages:** Python, JavaScript, TypeScript, Java, C, Go, Rust (tree-shaken imports to keep bundle small).
 
 ## Tech Stack
 
@@ -79,10 +102,12 @@ A single Bun WebSocket server can handle:
 |---|---|
 | Frontend | Next.js 16 (App Router), React 19, Tailwind CSS v4 |
 | API | Hono (running on Vercel/Next.js) |
-| WebSocket Server | Hono + Bun (native WebSocket) |
-| Database | Redis (Upstash) — ephemeral state |
-| Validation | Zod v4 |
+| WebSocket Server | Hono + Bun (native WebSocket + pub/sub) |
+| Database | Redis (Upstash) — ephemeral state with TTL |
+| Validation | Zod v4 (discriminated unions for message types) |
 | Encryption | Web Crypto API (AES-256-GCM, PBKDF2) |
+| Syntax Highlighting | highlight.js (core + 7 languages) |
+| Icons | lucide-react (Code, Copy, Check) |
 | Language | TypeScript |
 | Font | JetBrains Mono |
 
@@ -111,6 +136,7 @@ NEXT_PUBLIC_URL=http://localhost:3000
 NEXT_PUBLIC_WS_URL=ws://localhost:8080/ws
 UPSTASH_REDIS_REST_URL=your_redis_url
 UPSTASH_REDIS_REST_TOKEN=your_redis_token
+SALT_KEY=your_salt_for_key_derivation
 PORT=8080
 ```
 
@@ -127,31 +153,12 @@ npm run dev
 bun src/ws-server.ts
 ```
 
-**Git Bash (Windows):**
+**Git Bash / WSL / macOS:**
 ```bash
-# Run both simultaneously
 npm run dev:all
 ```
 
-**WSL (Windows Subsystem for Linux):**
-```bash
-# Terminal 1
-npm run dev
-
-# Terminal 2
-bun src/ws-server.ts
-```
-
-**macOS / Linux:**
-```bash
-# Terminal 1
-npm run dev
-
-# Terminal 2
-bun src/ws-server.ts
-```
-
-> **Note:** `npm run dev:all` uses `&` for background processes which only works in bash-compatible shells (Git Bash, macOS terminal, WSL). For PowerShell, use two separate terminals.
+> **Note:** `npm run dev:all` uses `&` for background processes which only works in bash-compatible shells. For PowerShell, use two separate terminals.
 
 ### Usage
 
@@ -159,26 +166,28 @@ bun src/ws-server.ts
 2. Click **"CREATE SECURE ROOM"** to generate a new room
 3. Share the room code with a friend (e.g., `xK3f2`)
 4. They enter the code and click **"JOIN"**
-5. Chat securely — the room self-destructs after 10 minutes
+5. Chat securely — paste code for automatic syntax highlighting
+6. The room self-destructs after 10 minutes
 
 ## How It Works
 
 1. **Room Creation** — Server generates a 5-character room code via nanoid. Room metadata and expiry stored in Redis with a 10-minute TTL.
 2. **Join Flow** — Proxy middleware validates the room exists, assigns a unique token via cookie, and adds the user to the room's member set (max 3).
-3. **Key Exchange** — Client derives an AES-256-GCM encryption key from the room code using PBKDF2 (100k iterations). Both users derive the same key — no key sharing needed.
-4. **Encrypted Messaging** — Messages encrypted client-side before sending. Server relays ciphertext via WebSocket broadcast. Receiving client decrypts with the shared key.
-5. **Destruction** — When destroyed (manually or via TTL), Redis keys are deleted and all connected clients are redirected to home. SessionStorage is cleared.
+3. **Key Derivation** — Client derives an AES-256-GCM encryption key from the room code using PBKDF2 (100k iterations, SHA-256). Both users derive the same key independently — no key exchange protocol needed.
+4. **Encrypted Messaging** — Messages encrypted client-side before sending. Each message gets a unique random 12-byte IV. Server relays ciphertext via WebSocket broadcast. Receiving client decrypts with the shared key.
+5. **Code Detection** — On paste, checks for multi-line + indentation. Auto-marks as code. Toggle button for manual override. Code blocks rendered with highlight.js syntax highlighting.
+6. **Reconnection** — On unexpected disconnect, client reconnects with exponential backoff (1s, 2s, 4s... cap 30s). Intentional closes (room destroy, expiry) skip reconnection.
+7. **Destruction** — When destroyed (manually or via TTL), Redis keys are deleted and all connected clients are redirected to home. SessionStorage is cleared.
 
 ## Deployment
 
 - **Frontend** — Deployed on [Vercel](https://vercel.com)
-- **Backend (WebSocket Server)** — Deployed on Microsoft Azure via GitHub Actions CI/CD pipeline
+- **Backend (WebSocket Server)** — Docker container deployed on Microsoft Azure via GitHub Actions CI/CD pipeline (builds to `ghcr.io`)
 
 ## Future Enhancements
 
-- [ ] Code snippet formatting — preserve indentation and whitespace for sharing code
-- [ ] Room settings — custom TTL and user limit when creating a room
-- [ ] Reconnection with exponential backoff
-- [ ] Connection status indicator
-- [ ] Larger room sizes — support more than 3 users per room
+- Room settings — custom TTL and user limit when creating a room
+- Larger room sizes — support more than 3 users per room
+- File sharing — encrypted file transfer between room members
+- Message reactions — lightweight emoji reactions without persistence
 
