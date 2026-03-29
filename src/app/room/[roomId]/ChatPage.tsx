@@ -3,10 +3,11 @@ import { useCountdown } from "@/hooks/useCountdown";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { nanoid } from "nanoid";
+import { deriveKey, encrypt, decrypt } from "@/lib/crypto";
 
 function formatTimeRemaining(seconds: number) {
-  let mins = Math.floor(seconds / 60);
-  let secs = seconds % 60;
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
@@ -15,6 +16,7 @@ type Message = {
   sender: string;
   username: string;
   time: number;
+  iv?: string;
 };
 
 const ChatPage = ({
@@ -26,6 +28,7 @@ const ChatPage = ({
   token: string;
   expireAt: number;
 }) => {
+
   const router = useRouter();
   const { timeLeft } = useCountdown(expireAt);
   const [copyStatus, setCopyStatus] = useState("Copy");
@@ -37,12 +40,61 @@ const ChatPage = ({
   const [toasts, setToasts] = useState<{ id: string; text: string }[]>([]);
   const [reconnectKey, setReconnectKey] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "reconnecting" | "disconnected">("disconnected");
+  const [isKeyReady, setIsKeyReady] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isDestroyingRef = useRef(false);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryCountRef = useRef(0);
+  const keyRef = useRef<CryptoKey | null>(null);
+  const prevMsgCountRef = useRef(0);
+  const [decryptedMessages, setDecryptedMessages] = useState<{ text: string; sender: string; username: string; time: number }[]>([]);
+
+
+  useEffect(() => {
+    if (!keyRef.current || messages.length === 0) {
+      setDecryptedMessages([]);
+      prevMsgCountRef.current = 0;
+      return;
+    }
+
+    let cancelled = false;
+    const key = keyRef.current;
+
+    if (messages.length > prevMsgCountRef.current && prevMsgCountRef.current > 0) {
+      const newMessages = messages.slice(prevMsgCountRef.current);
+      Promise.all(
+        newMessages.map(async (msg) => ({
+          text: msg.iv ? await decrypt(msg.text, msg.iv, key) : msg.text,
+          sender: msg.sender,
+          username: msg.username,
+          time: msg.time,
+        }))
+      ).then((result) => {
+        if (!cancelled) {
+          setDecryptedMessages((prev) => [...prev, ...result]);
+          prevMsgCountRef.current = messages.length;
+        }
+      });
+    } else {
+      Promise.all(
+        messages.map(async (msg) => ({
+          text: msg.iv ? await decrypt(msg.text, msg.iv, key) : msg.text,
+          sender: msg.sender,
+          username: msg.username,
+          time: msg.time,
+        }))
+      ).then((result) => {
+        if (!cancelled) {
+          setDecryptedMessages(result);
+          prevMsgCountRef.current = messages.length;
+        }
+      });
+    }
+
+    return () => { cancelled = true; };
+  }, [messages, isKeyReady]);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -81,6 +133,17 @@ const ChatPage = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    let cancelled = false;
+    deriveKey(roomId).then((key) => {
+      if (!cancelled) {
+        keyRef.current = key;
+        setIsKeyReady(true);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [roomId]);
 
   useEffect(() => {
     if (!roomId || !username || username === "anonymous") return;
@@ -227,17 +290,18 @@ const ChatPage = ({
     setTimeout(() => router.push("/"), 1500);
   };
 
-  const sendMessage = () => {
-    if (!input.trim() || !wsRef.current) return;
+  const sendMessage = async () => {
+    if (!input.trim() || !wsRef.current || !keyRef.current) return;
+
+    const { ciphertext, iv } = await encrypt(input, keyRef.current);
 
     const messagePayload: Message = {
-      text: input,
+      text: ciphertext,
+      iv: iv,
       sender: token,
       username: username,
       time: Date.now(),
     };
-
-    // console.log(messagePayload)
 
     wsRef.current.send(
       JSON.stringify({
@@ -247,7 +311,6 @@ const ChatPage = ({
     );
 
     setMessages((prev) => [...prev, messagePayload]);
-    // console.log("Client side:",messages)
     setInput("");
     inputRef.current?.focus();
   };
@@ -335,14 +398,14 @@ const ChatPage = ({
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
-        {messages.length === 0 ? (
+        {decryptedMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <p className="text-zinc-600 text-md font-mono tracking-wider">
-              No messages yet... Send a generic message to start.
+              {isKeyReady ? "No messages yet... Send a message to start." : "Securing room..."}
             </p>
           </div>
         ) : (
-          messages.map((msg, i) => {
+          decryptedMessages.map((msg, i) => {
             const isMe = msg.sender === token;
             return (
               <div
@@ -394,7 +457,7 @@ const ChatPage = ({
               type="text"
               placeholder={isWsOpen ? "Type Message..." : "Connecting..."}
               autoFocus
-              disabled={!isWsOpen}
+              disabled={!isWsOpen || !isKeyReady}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
