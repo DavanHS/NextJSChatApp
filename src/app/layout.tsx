@@ -65,6 +65,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "https://termi-chat-app.vercel.app",
   },
+  verification: {
+    google: "0mGTAjBIe22I4_PckDR03iK6oukR-v8JZJ8WES6ZNhM",
+  },
 };
 
 export default function RootLayout({
