@@ -96,6 +96,20 @@ User pastes indented code
 
 **Supported languages:** Python, JavaScript, TypeScript, Java, C, Go, Rust (tree-shaken imports to keep bundle small).
 
+### Limitations
+
+**PDF Copy Issue:** When copying code from PDF files, the PDF reader strips indentation and whitespace at the source level — this is not an application bug, but a fundamental limitation of how PDFs store and expose text. The clipboard API cannot recover data that was never preserved in the first place.
+
+**Why not solved:** Implementing a workaround (such as in-app code editors, special paste dialogs, or custom clipboard handling) would introduce significant complexity — adding code editor components, managing their state, handling mobile compatibility, and building custom input flows. This would bloat the application beyond its original purpose: a simple, lightweight chat for quick secure conversations. For a project of this scope, the pragmatic solution is to document the limitation and guide users to copy from sources that preserve formatting.
+
+**Workaround:** Copy code directly from:
+- Web pages / documentation / blogs
+- GitHub, GitLab, Bitbucket
+- Code editors (VS Code, Sublime, etc.)
+- Any plain-text or HTML-based source
+
+These sources preserve indentation in the clipboard, and the app's code detection works correctly with them.
+
 ## Tech Stack
 
 | Layer | Technology |

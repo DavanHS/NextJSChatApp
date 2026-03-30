@@ -120,7 +120,7 @@ app.get('/ws', upgradeWebSocket((c) => {
             }
         },
 
-        onClose(event, ws) {
+        onClose(_, ws) {
             if (roomId) {
                 const rawWs = ws.raw as ServerWebSocket;
                 rawWs.unsubscribe(roomId);

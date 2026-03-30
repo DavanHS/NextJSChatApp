@@ -77,7 +77,24 @@ function HomeContent() {
           <h1 className="text-2xl font-bold tracking-tight text-green-500">
             termi_chat
           </h1>
-          <p className="text-zinc-500 text-sm">self destructing chat room</p>
+          <p className="text-zinc-500 text-sm ">
+            Self-destructs in 10 minutes — share the room code with friends
+          </p>
+          <p className="text-zinc-500 text-sm">
+            End-to-end encrypted — server never sees your messages
+          </p>
+          <p className="text-zinc-500 text-sm">
+            Code sharing — paste indented code for syntax highlighting
+          </p>
+          <p className="text-zinc-500 text-sm">
+            Note: Copy from HTML sources — PDFs strip indentation
+          </p>
+          <div className="pt-3 space-y-1 text-xs text-zinc-600 font-mono">
+            <p></p>
+            <p></p>
+            <p></p>
+            <p></p>
+          </div>
         </div>
 
         {error && (
@@ -124,7 +141,7 @@ function HomeContent() {
                 type="text"
               />
               <button
-                onClick={()=>{
+                onClick={() => {
                   joinRoom();
                 }}
                 disabled={isJoining}
@@ -142,11 +159,13 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={
-      <main className="flex min-h-screen flex-col bg-black items-center justify-center p-4">
-        <div className="text-green-500 font-mono text-sm">Loading...</div>
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen flex-col bg-black items-center justify-center p-4">
+          <div className="text-green-500 font-mono text-sm">Loading...</div>
+        </main>
+      }
+    >
       <HomeContent />
     </Suspense>
   );
