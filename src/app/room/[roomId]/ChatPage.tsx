@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 import { deriveKey, encrypt, decrypt } from "@/lib/crypto";
 import { highlightCode } from "@/lib/codeHighlight";
-import { Code, Copy, Check } from "lucide-react";
+import { Code, Copy, Check, Clipboard } from "lucide-react";
 
 function formatTimeRemaining(seconds: number) {
   const mins = Math.floor(seconds / 60);
@@ -348,7 +348,29 @@ const ChatPage = ({
     setCopyStatus("Copied!");
     setTimeout(() => setCopyStatus("Copy"), 2000);
   };
-  
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) {
+        const toastId = nanoid();
+        setToasts((prev) => [...prev, { id: toastId, text: "Clipboard is empty" }]);
+        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toastId)), 3000);
+        return;
+      }
+      setInput(text);
+      const isMultiLine = text.includes("\n");
+      const hasIndentation = text.split("\n").some((l) => /^(  |\t)/.test(l));
+      if (isMultiLine && hasIndentation) {
+        setIsCodeForNextMessage(true);
+      }
+    } catch {
+      const toastId = nanoid();
+      setToasts((prev) => [...prev, { id: toastId, text: "Could not read clipboard" }]);
+      setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toastId)), 3000);
+    }
+  };
+
   useEffect(() => {
     if (timeLeft <= 0) {
       sessionStorage.removeItem(`chat_history_${roomId}`);
@@ -522,6 +544,14 @@ const ChatPage = ({
               className=" align-bottom overflow-hidden w-full bg-black text-zinc-100 placeholder:text-zinc-700 py-3 pl-8 pr-4 text-sm border border-zinc-800 focus:border-green-900/50 focus:ring-1 focus:ring-green-900/50 transition-all outline-none rounded-md disabled:opacity-50 resize-none font-mono max-h-48"
             />
           </div>
+          <button
+            onClick={handlePasteFromClipboard}
+            disabled={!isWsOpen || !isKeyReady}
+            className="p-3 border border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300 rounded-md transition-colors flex-shrink-0"
+            title="Paste from clipboard (preserves indentation)"
+          >
+            <Clipboard size={18} />
+          </button>
           {/* Toggle button — green border when code mode is active */}
           <button
             onClick={() => setIsCodeForNextMessage((prev) => !prev)}
