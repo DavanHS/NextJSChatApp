@@ -1,6 +1,14 @@
+import type { Metadata } from "next";
 import { redis } from "@/lib/redis";
 import ChatPage from "./ChatPage";
 import { cookies } from "next/headers";
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 interface PageProps {
   params: Promise<{

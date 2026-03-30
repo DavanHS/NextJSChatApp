@@ -77,6 +77,9 @@ function HomeContent() {
           <h1 className="text-2xl font-bold tracking-tight text-green-500">
             termi_chat
           </h1>
+          <h2 className="text-sm text-zinc-600 font-mono">
+            Private encrypted terminal chat app — self-destructing anonymous rooms
+          </h2>
           <p className="text-zinc-500 text-sm ">
             Self-destructs in 10 minutes — share the room code with friends
           </p>
