@@ -43,12 +43,21 @@ export const metadata: Metadata = {
     siteName: "TermiChat",
     locale: "en_US",
     type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "TermiChat — Private Encrypted Chat App",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "TermiChat — Private Terminal Chat App",
     description:
       "Free end-to-end encrypted chat with self-destructing rooms. No signup, no logs, full privacy.",
+    images: ["/og-image.png"],
   },
   robots: {
     index: true,
