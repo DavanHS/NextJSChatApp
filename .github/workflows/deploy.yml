@@ -24,14 +24,14 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and Push Docker Image
-      uses: docker/build-push-action@v4
+      uses: docker/build-push-action@v6
       with:
         context: .
         push: true
         tags: ghcr.io/davanhs/termichat-backend:latest
 
     - name: Deploy to Azure
-      uses: azure/webapps-deploy@v2
+      uses: azure/webapps-deploy@v3
       with:
         app-name: 'TermiChat-backend'
         publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
