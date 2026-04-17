@@ -77,7 +77,7 @@ app.get('/ws', upgradeWebSocket((c) => {
             }));
         },
 
-        onMessage(event, ws) {
+        async onMessage(event, ws) {
             if (!roomId) return;
 
             try {
@@ -105,11 +105,33 @@ app.get('/ws', upgradeWebSocket((c) => {
                 const rawWs = ws.raw as ServerWebSocket;
 
                 if (parsed.data.type === "MESSAGE") {
+                    const messageTime = Date.now();
+                    const payload = {
+                        ...parsed.data.payload,
+                        time: messageTime
+                    };
+
+                    const streamKey = `messages:${roomId}`;
+                    const streamId = await redis.xadd(streamKey, '*', {
+                        text: payload.text,
+                        sender: payload.sender,
+                        username: payload.username,
+                        iv: payload.iv || '',
+                        isCode: String(payload.isCode),
+                        time: String(messageTime),
+                    });
+
+                    const ttl = await redis.ttl(`meta:${roomId}`);
+                    if (ttl > 0) {
+                        await redis.expire(streamKey, ttl);
+                    }
+                    await redis.xtrim(streamKey, { strategy: 'MAXLEN', threshold: 100 });
+
                     rawWs.publish(roomId, JSON.stringify({
                         type: "MESSAGE",
                         payload: {
-                            ...parsed.data.payload,
-                            time: Date.now()
+                            ...payload,
+                            streamId: streamId
                         }
                     }));
                 } else {

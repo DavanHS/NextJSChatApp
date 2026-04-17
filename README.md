@@ -21,6 +21,7 @@ And since most of what gets shared between lab computers is code, the app had to
 - **WebSocket Reconnection** — Exponential backoff on disconnect (1s → 2s → 4s → cap 30s). Skips reconnection if room is expired or intentionally destroyed. Distinguishes intentional close from unexpected drop.
 - **Connection Status Indicator** — Real-time status in header: green = connected, amber pulsing = reconnecting (with attempt count), red = disconnected.
 - **Session Storage Persistence** — Encrypted messages saved to sessionStorage on page unload. Restored on reload with automatic decryption. Cleared on room destruction or expiry.
+- **Message History for Late Joiners** — Redis Streams store last 100 messages with matching room TTL. New users joining after messages are sent can retrieve recent conversation history. Hybrid approach: existing users use sessionStorage (no Redis call), late joiners fetch from Redis Stream.
 - **Rate Limiting** — Server-side protection against message spam (10 messages per 5 seconds per user). Client UI adapts by disabling the send button during cooldown.
 - **Input Validation** — Zod schemas validate all API requests and WebSocket messages. Malformed data is rejected before processing.
 - **Room Authorization** — Only verified room members can destroy rooms. Token-based authentication via cookies.
@@ -37,10 +38,11 @@ TermiChat uses a decoupled two-process architecture:
 │                         │     │                         │
 │  • Pages & Routing      │     │  • WebSocket Connections│
 │  • API Routes (Hono)    │     │  • Message Broadcasting │
-│  • Proxy Middleware     │     │  • Rate Limiting        │
-│  • Client-side E2EE     │     │  • Zod Validation       │
-│  • Code Highlighting    │     │  • Auth Verification    │
-│  • Paste Detection      │     │  • Exponential Reconnect│
+│  • Proxy Middleware     │     │  • XADD to Redis Stream │
+│  • Client-side E2EE     │     │  • Rate Limiting        │
+│  • Code Highlighting    │     │  • Zod Validation       │
+│  • Paste Detection      │     │  • Auth Verification    │
+│  • History Fetch        │     │  • Exponential Reconnect│
 └───────────┬─────────────┘     └───────────┬─────────────┘
             │                               │
             └───────────┬───────────────────┘
@@ -51,6 +53,7 @@ TermiChat uses a decoupled two-process architecture:
               │  • Room Metadata  │
               │  • User Tokens    │
               │  • Room TTL       │
+              │  • Message Stream │  ← Last 100 messages
               └───────────────────┘
 ```
 
@@ -189,9 +192,11 @@ npm run dev:all
 2. **Join Flow** — Proxy middleware validates the room exists, assigns a unique token via cookie, and adds the user to the room's member set (max 3).
 3. **Key Derivation** — Client derives an AES-256-GCM encryption key from the room code using PBKDF2 (100k iterations, SHA-256). Both users derive the same key independently — no key exchange protocol needed.
 4. **Encrypted Messaging** — Messages encrypted client-side before sending. Each message gets a unique random 12-byte IV. Server relays ciphertext via WebSocket broadcast. Receiving client decrypts with the shared key.
-5. **Code Detection** — On paste, checks for multi-line + indentation. Auto-marks as code. Toggle button for manual override. Code blocks rendered with highlight.js syntax highlighting.
-6. **Reconnection** — On unexpected disconnect, client reconnects with exponential backoff (1s, 2s, 4s... cap 30s). Intentional closes (room destroy, expiry) skip reconnection.
-7. **Destruction** — When destroyed (manually or via TTL), Redis keys are deleted and all connected clients are redirected to home. SessionStorage is cleared.
+5. **Message History** — When a message is sent, it's also stored in Redis Stream (`messages:${roomId}`) with XADD and trimmed to last 100 entries via XTRIM. Stream TTL synced with room TTL. New users joining late can fetch recent messages via the history API.
+6. **Buffer & Merge** — When loading history, client connects to WebSocket first, then fetches history. WS messages arriving during fetch are buffered. After history loads, buffered messages are merged and displayed.
+7. **Code Detection** — On paste, checks for multi-line + indentation. Auto-marks as code. Toggle button for manual override. Code blocks rendered with highlight.js syntax highlighting.
+8. **Reconnection** — On unexpected disconnect, client reconnects with exponential backoff (1s, 2s, 4s... cap 30s). Intentional closes (room destroy, expiry) skip reconnection.
+9. **Destruction** — When destroyed (manually or via TTL), Redis keys (room metadata, user tokens, message stream) are deleted and all connected clients are redirected to home. SessionStorage is cleared.
 
 ## Deployment
 

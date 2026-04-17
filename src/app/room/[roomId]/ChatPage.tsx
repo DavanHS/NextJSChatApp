@@ -19,7 +19,8 @@ type Message = {
   username: string;
   time: number;
   iv?: string;
-  isCode: boolean; // true for code snippets, false for regular text
+  isCode: boolean;
+  streamId?: string;
 };
 
 const ChatPage = ({
@@ -57,6 +58,9 @@ const ChatPage = ({
   const wsCancelledRef = useRef(false);
   const prevInputLenRef = useRef(0);
   const [decryptedMessages, setDecryptedMessages] = useState<{ text: string; sender: string; username: string; time: number; isCode: boolean }[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const messageBufferRef = useRef<Message[]>([]);
 
 
   useEffect(() => {
@@ -137,7 +141,37 @@ const ChatPage = ({
         setMessages(parsed.messages);
       }
     } else {
-      setMessages([]);
+      setIsLoadingHistory(true);
+      setIsBuffering(true);
+      fetch(`/api/room/history?roomId=${roomId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.messages && Array.isArray(data.messages)) {
+            const historyMessages: Message[] = data.messages.map((m: { streamId: string; text: string; sender: string; username: string; time: number; iv: string; isCode: boolean }) => ({
+              streamId: m.streamId,
+              text: m.text,
+              sender: m.sender,
+              username: m.username,
+              time: m.time,
+              iv: m.iv,
+              isCode: m.isCode,
+            }));
+            setMessages(historyMessages);
+            sessionStorage.setItem(
+              `chat_history_${roomId}`,
+              JSON.stringify({
+                messages: historyMessages,
+                timestamp: Date.now(),
+              })
+            );
+          }
+        })
+        .catch(() => {
+          setMessages([]);
+        })
+        .finally(() => {
+          setIsLoadingHistory(false);
+        });
     }
   }, [roomId]);
 
@@ -247,9 +281,12 @@ const ChatPage = ({
       }
 
       if (data.type === "MESSAGE" && data.payload) {
-        // console.log(data.payload);
-        // console.log("from server:", messages)
-        setMessages((prev) => [...prev, data.payload]);
+        const msg = data.payload;
+        if (isLoadingHistory || isBuffering) {
+          messageBufferRef.current.push(msg);
+        } else {
+          setMessages((prev) => [...prev, msg]);
+        }
       }
     };
 
@@ -348,6 +385,26 @@ const ChatPage = ({
     setCopyStatus("Copied!");
     setTimeout(() => setCopyStatus("Copy"), 2000);
   };
+
+  useEffect(() => {
+    if (!isLoadingHistory && isBuffering && messageBufferRef.current.length > 0) {
+      const buffer = [...messageBufferRef.current];
+      const currentMessages = messages;
+      const merged = [...currentMessages, ...buffer];
+      messageBufferRef.current = [];
+      setMessages(merged);
+      setIsBuffering(false);
+      sessionStorage.setItem(
+        `chat_history_${roomId}`,
+        JSON.stringify({
+          messages: merged,
+          timestamp: Date.now(),
+        })
+      );
+    } else if (!isLoadingHistory && isBuffering && messageBufferRef.current.length === 0) {
+      setIsBuffering(false);
+    }
+  }, [isLoadingHistory, isBuffering, roomId]);
 
   useEffect(() => {
     if (timeLeft <= 0) {
@@ -526,7 +583,7 @@ const ChatPage = ({
           <button
             onClick={() => setIsCodeForNextMessage((prev) => !prev)}
             disabled={!isWsOpen || !isKeyReady}
-            className={`p-3 border rounded-md transition-colors flex-shrink-0 ${
+            className={`p-3 border rounded-md transition-colors shrink-0 ${
               isCodeForNextMessage
                 ? "border-green-500 text-green-500 bg-green-500/10"
                 : "border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
@@ -538,7 +595,7 @@ const ChatPage = ({
           <button
             onClick={sendMessage}
             disabled={!input.trim() || !isWsOpen || isRateLimited || !isKeyReady}
-            className="px-6 py-3 bg-zinc-100 text-black font-bold text-sm hover:bg-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-md flex-shrink-0"
+            className="px-6 py-3 bg-zinc-100 text-black font-bold text-sm hover:bg-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-md shrink-0"
           >
             SEND
           </button>
