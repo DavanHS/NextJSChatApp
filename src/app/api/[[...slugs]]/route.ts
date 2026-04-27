@@ -87,7 +87,14 @@ const roomApp = new Hono()
 const routes = new Hono()
     .basePath("/api")
     .use('/*', cors({
-    origin: [process.env.NEXT_PUBLIC_URL || '*', 'http://localhost:3000'],
+    origin: (origin) => {
+        const allowed = process.env.NEXT_PUBLIC_URL || 'https://termi-chat.vercel.app'
+        const localhost = 'http://localhost:3000'
+        if (origin === allowed || origin === localhost || !origin) {
+            return origin
+        }
+        return allowed
+    },
     credentials: true,
 }))
     .route('/room', roomApp);
