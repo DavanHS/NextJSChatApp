@@ -86,7 +86,10 @@ const roomApp = new Hono()
 
 const routes = new Hono()
     .basePath("/api")
-    .use('/*', cors())
+    .use('/*', cors({
+    origin: [process.env.NEXT_PUBLIC_URL || '*', 'http://localhost:3000'],
+    credentials: true,
+}))
     .route('/room', roomApp);
 
 export type AppType = typeof routes;

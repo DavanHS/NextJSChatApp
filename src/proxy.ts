@@ -45,7 +45,7 @@ export const proxy = async (req: NextRequest) => {
 
     const [count, isMember] = await pipeline.exec() as [number, number];
 
-    if (isMember === 0 && count >= 3) {
+    if (isMember === 0 && count >= 8) {
         return NextResponse.redirect(new URL("/?error=room-is-full", req.url))
     }
 
