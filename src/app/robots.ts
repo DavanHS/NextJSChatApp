@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/room/", "/api/"],
       },
     ],
-    sitemap: "https://termi-chat-app.vercel.app/sitemap.xml",
+    sitemap: "https://termi-chat.vercel.app/sitemap.xml",
   };
 }
