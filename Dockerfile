@@ -2,6 +2,6 @@ FROM oven/bun:1
 WORKDIR /app
 COPY . .
 RUN bun install
-ENV PORT=10000 
-EXPOSE 10000
+ENV PORT=8080
+EXPOSE 8080
 CMD ["bun", "src/ws-server.ts"] 

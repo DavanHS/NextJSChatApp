@@ -45,6 +45,14 @@ app.use('/*', cors({
     credentials: true
 }));
 
+app.get('/health', (c) => {
+    return c.json({ status: 'ok', timestamp: Date.now() });
+});
+
+app.get('/metrics', (c) => {
+    return c.json({ message: 'metrics endpoint placeholder' });
+});
+
 app.get('/ws', upgradeWebSocket((c) => {
     const roomId = c.req.query('roomId');
     const token = c.req.query('token');
